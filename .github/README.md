@@ -1,6 +1,6 @@
 # pihole_munin_
 
-Munin plugins for monitoring various Pi-hole® statistics.
+Munin plugins for monitoring various Pi-hole® ≥ 6.0 statistics.
 
 # Quick Start
 
@@ -22,7 +22,7 @@ curl -sSL https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/refs/
 Munin nodes run their plugins periodically, by default at 5 minute intervals past the hour.
 
 # Documentation
-* Plugins
+## Plugins
 ```
   cache                Shows Pi-hole's cache
   cache_by_type        Shows Pi-hole's cached records by type
@@ -40,24 +40,19 @@ Munin nodes run their plugins periodically, by default at 5 minute intervals pas
   status               Shows Pi-hole's blocking status
 ```
 
-* Configuration
+## Configuration
 Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
-Default values are as shown.
 ```
-[pihole_munin_*]
+  [pihole_munin_*]
     ### AUTHENTICATION ###
-
-    # The user these plugins should run as.
-    # The pihole user has access to the CLI password by default.
-    user pihole
 
     # The path at which Pi-hole's CLI password may be found.
     env.cli_password /etc/pihole/cli_pw
 
     # An application specific password will take precedence over a CLI
     # password if one is found to exist.
-    env.app_password
+    #env.app_password APP_PASSWORD_HERE
 
     ### API ###
 
@@ -96,6 +91,10 @@ Default values are as shown.
     env.status_warn 1:1
 
     ### MISCELLANEOUS ###
+
+    # The user these plugins should run as.
+    # The pihole user has access to the CLI password by default.
+    user pihole
 
     # The graph_category value determines the category in which the
     # pihole_munin_* graphs appear in Munin's interface.
@@ -155,72 +154,72 @@ E.g.
 ```
 
 # Plugin Gallery
-* cache
+## cache
 <picture>
   <img alt="This plugin shows Pi-hole's cache" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_cache-day.png">
 </picture>
 
-* cache_by_type
+## cache_by_type
 <picture>
   <img alt="This plugin shows Pi-hole's cached records by type" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_cache_by_type-day.png">
 </picture>
 
-* clients
+## clients
 <picture>
   <img alt="This plugin shows active and total Pi-hole clients" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_clients-day.png">
 </picture>
 
-* dnsmasq
+## dnsmasq
 <picture>
   <img alt="This plugin shows various Pi-hole FTLDNS dnsmasq statistics" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_dnsmasq-day.png">
 </picture>
 
-* domains
+## domains
 <picture>
   <img alt="This plugin shows the number of domains being blocked by Pi-hole" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_domains-day.png">
 </picture>
 
-* gravity
+## gravity
 <picture>
   <img alt="This plugin shows various Pi-hole gravity database statistics" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_gravity-day.png">
 </picture>
 
-* percent
+## percent
 <picture>
   <img alt="This plugin shows Pi-hole's blocked query percentage" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_percent-day.png">
 </picture>
 
-* privacy
+## privacy
 <picture>
   <img alt="This plugin shows Pi-hole's privacy level" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_privacy-day.png">
 </picture>
 
-* queries
+## queries
 <picture>
   <img alt="This plugin shows Pi-hole queries" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_queries-day.png">
 </picture>
 
-* queries_by_status
+## queries_by_status
 <picture>
   <img alt="This plugin shows Pi-hole queries by status" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_queries_by_status-day.png">
 </picture>
 
-* queries_by_type
+## queries_by_type
 <picture>
   <img alt="This plugin shows Pi-hole queries by record type" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_queries_by_type-day.png">
 </picture>
 
-* replies
+## replies
 <picture>
   <img alt="This plugin shows Pi-hole replies" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_replies-day.png">
 </picture>
 
-* replies_by_type
+## replies_by_type
 <picture>
   <img alt="This plugin shows Pi-hole replies by record type" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_replies_by_type-day.png">
 </picture>
 
-* status
+## status
 <picture>
   <img alt="This plugin shows Pi-hole's blocking status" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_status-day.png">
 </picture>

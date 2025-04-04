@@ -157,72 +157,72 @@ E.g.
 # Plugin Gallery
 * cache
 <picture>
-  <img alt="This plugin shows Pi-hole's cache" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_cache-day.png">
+  <img alt="This plugin shows Pi-hole's cache" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_cache-day.png">
 </picture>
 
 * cache_by_type
 <picture>
-  <img alt="This plugin shows Pi-hole's cached records by type" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_cache_by_type-day.png">
+  <img alt="This plugin shows Pi-hole's cached records by type" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_cache_by_type-day.png">
 </picture>
 
 * clients
 <picture>
-  <img alt="This plugin shows active and total Pi-hole clients" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_clients-day.png">
+  <img alt="This plugin shows active and total Pi-hole clients" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_clients-day.png">
 </picture>
 
 * dnsmasq
 <picture>
-  <img alt="This plugin shows various Pi-hole FTLDNS dnsmasq statistics" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_dnsmasq-day.png">
+  <img alt="This plugin shows various Pi-hole FTLDNS dnsmasq statistics" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_dnsmasq-day.png">
 </picture>
 
 * domains
 <picture>
-  <img alt="This plugin shows the number of domains being blocked by Pi-hole" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_domains-day.png">
+  <img alt="This plugin shows the number of domains being blocked by Pi-hole" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_domains-day.png">
 </picture>
 
 * gravity
 <picture>
-  <img alt="This plugin shows various Pi-hole gravity database statistics" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_gravity-day.png">
+  <img alt="This plugin shows various Pi-hole gravity database statistics" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_gravity-day.png">
 </picture>
 
 * percent
 <picture>
-  <img alt="This plugin shows Pi-hole's blocked query percentage" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_percent-day.png">
+  <img alt="This plugin shows Pi-hole's blocked query percentage" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_percent-day.png">
 </picture>
 
 * privacy
 <picture>
-  <img alt="This plugin shows Pi-hole's privacy level" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_privacy-day.png">
+  <img alt="This plugin shows Pi-hole's privacy level" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_privacy-day.png">
 </picture>
 
 * queries
 <picture>
-  <img alt="This plugin shows Pi-hole queries" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_queries-day.png">
+  <img alt="This plugin shows Pi-hole queries" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_queries-day.png">
 </picture>
 
 * queries_by_status
 <picture>
-  <img alt="This plugin shows Pi-hole queries by status" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_queries_by_status-day.png">
+  <img alt="This plugin shows Pi-hole queries by status" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_queries_by_status-day.png">
 </picture>
 
 * queries_by_type
 <picture>
-  <img alt="This plugin shows Pi-hole queries by record type" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_queries_by_type-day.png">
+  <img alt="This plugin shows Pi-hole queries by record type" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_queries_by_type-day.png">
 </picture>
 
 * replies
 <picture>
-  <img alt="This plugin shows Pi-hole replies" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_replies-day.png">
+  <img alt="This plugin shows Pi-hole replies" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_replies-day.png">
 </picture>
 
 * replies_by_type
 <picture>
-  <img alt="This plugin shows Pi-hole replies by record type" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_replies_by_type-day.png">
+  <img alt="This plugin shows Pi-hole replies by record type" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_replies_by_type-day.png">
 </picture>
 
 * status
 <picture>
-  <img alt="This plugin shows Pi-hole's blocking status" src="https://raw.githubusercontent.com/saint-lascivious/pihole_munin_/images/pihole_munin_status-day.png">
+  <img alt="This plugin shows Pi-hole's blocking status" src="https://github.com/saint-lascivious/pihole_munin_/blob/master/images/pihole_munin_status-day.png">
 </picture>
 
 <p align="right"><sup><sub>pihole_munin_ - saint-lascivious (Hayden Pearce), ©2025</sub></sup></p>

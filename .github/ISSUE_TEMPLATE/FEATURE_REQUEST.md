@@ -1,7 +1,7 @@
 ---
 name: Feature request
-about: Suggest an addition or improvement to munin-pihole-plugins
-title: 'munin-pihole-plugins: feature request'
+about: Suggest an addition or improvement to pihole_munin_
+title: 'pihole_munin_: feature request'
 labels: feature request
 assignees: saint-lascivious
 

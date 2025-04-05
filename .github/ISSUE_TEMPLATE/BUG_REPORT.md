@@ -1,7 +1,7 @@
 ---
 name: Bug report
-about: Create a report to help munin-pihole-plugins improve
-title: 'munin-pihole-plugins: bug report'
+about: Create a report to help pihole_munin_ improve
+title: 'pihole_munin_: bug report'
 labels: bug
 assignees: saint-lascivious
 
@@ -23,12 +23,9 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Desktop (please complete the following information):**
- - munin-pihole-plugins version [e.g. 06.xx.xx]
- - munin-pihole-plugins branch [e.g. master, development]
-- [ ] master
-- [ ] development
- - OS: [e.g. Debian, Ubuntu]
- - Version [e.g. 9, 21.10]
+ - pihole_munin_ version [e.g. v1.0.1]
+ - OS: [e.g. Ubuntu]
+ - Version [e.g. 24.10]
 
 **Additional context**
 Add any other context about the problem here.

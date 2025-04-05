@@ -19,5 +19,5 @@ Please delete options that are not relevant.
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation where required
-- [ ] My changes generate no new shellcheck warnings
+- [ ] My changes generate no shellcheck warnings
 - [ ] I have performed tests that prove my fix is effective or that my feature works

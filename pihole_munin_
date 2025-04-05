@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="1.0.1"
+version="1.0.2"
 
 : <<=cut
 =head1 NAME
@@ -639,7 +639,7 @@ pihole_munin_root() {
 }
 
 pihole_munin_uninstall() {
-    pihole_munin_root "$@" || { printf "error: failed to acquire root privileges.\n" >&2; return 1; }
+    pihole_munin_root "$@"
     if [ -d "${plugins_available}" ]; then
         rm -f "${plugins_available}/pihole_munin_" || { printf "error: failed to remove plugin from available.\n" >&2; return 1; }
     fi
@@ -649,7 +649,7 @@ pihole_munin_uninstall() {
 }
 
 pihole_munin_install() {
-    pihole_munin_root "$@" || { printf "error: failed to acquire root privileges.\n" >&2; return 1; }
+    pihole_munin_root "$@"
     pihole_munin_uninstall "$@" || { printf "Error: Uninstallation failed.\n" >&2; return 1; }
     [ -d "${plugins_available}" ] || { printf "Error: Directory not found: %s\n" "${plugins_available}" >&2; return 1; }
     [ -d "${plugins_enabled}" ] || { printf "Error: Directory not found: %s\n" "${plugins_enabled}" >&2; return 1; }
@@ -680,6 +680,7 @@ pihole_munin_help() {
 }
 
 pihole_munin_configure() {
+    pihole_munin_root "$@"
     config_file="/etc/munin/plugin-conf.d/pihole_munin_"
     [ -n "$PIHOLE_MUNIN_CONF" ] && config_file="$PIHOLE_MUNIN_CONF"
     [ -f "$config_file" ] || printf "[pihole_munin_*]\n" > "$config_file"
@@ -751,7 +752,7 @@ case $1 in
                 pihole_munin_help
             ;;
             "version")
-                printf "%s\n" "$0 version: ${version}"
+                printf "%s\n" "version: ${version}"
             ;;
             *)
                 pihole_munin_help

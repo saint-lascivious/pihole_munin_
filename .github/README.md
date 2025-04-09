@@ -1,4 +1,7 @@
 # pihole_munin_
+![alt text][epic_handshake_]
+
+[epic_handshake_]:https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/misc/epic_handshake_.png "Munin plugins for monitoring various Pi-hole® ≥ 6.0 statistics."
 
 Munin plugins for monitoring various Pi-hole® ≥ 6.0 statistics.
 

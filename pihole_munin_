@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="1.1.0"
+version="1.1.1"
 
 : <<=cut
 =head1 NAME
@@ -668,7 +668,21 @@ pihole_munin_configure() {
     shift
     case "$cmd" in
         "list")
-            grep -E '^( *env\.| *user\s)' "$config_file" | sed 's/^ *//'
+            grep -E '^( *env\.| *user\s)' "$config_file" | while IFS= read -r line; do
+                case "$line" in
+                    *"env.password "*|*"env.app_password "*)
+                        var=$(printf '%s' "$line" | awk '{print $1}')
+                        val=$(printf '%s' "$line" | cut -d' ' -f2-)
+                        len=$(printf '%s' "$val" | wc -c)
+                        [ "$len" -gt 0 ] && len=$((len - 1))
+                        masked=$(printf '%*s' "$len" '' | tr ' ' '*')
+                        printf '%s %s\n' "$var" "$masked"
+                    ;;
+                    *)
+                        printf '%s\n' "$line"
+                    ;;
+                esac
+            done
         ;;
         "add")
             [ -z "$1" ] && { printf "Error: No variable specified.\n" >&2; return 1; }
@@ -749,6 +763,9 @@ pihole_munin_help() {
                         "" \
                         "Adds or updates a plugin configuration variable." \
                         "" \
+                        "You will be prompted to enter the value securely if it" \
+                        "is sensitive (e.g., password or app_password)." \
+                        "" \
                         "Examples:" \
                         "  admin add host 192.168.1.10" \
                         "  admin add user pihole"
@@ -767,7 +784,10 @@ pihole_munin_help() {
                     printf "%s\n" \
                         "Usage: admin list" \
                         "" \
-                        "Displays all configured plugin variables."
+                        "Displays all configured plugin variables." \
+                        "" \
+                        "Sensitive variables (e.g., password or app_password)" \
+                        "will be masked."
                 ;;
                 "install")
                     printf "%s\n" \
@@ -818,7 +838,8 @@ pihole_munin_help() {
                 "Usage: version [--skip-version-check]" \
                 "" \
                 "Displays the plugin version string. If not skipped," \
-                "a check for a newer version will be performed using a remote DNS TXT record." \
+                "a check for a newer version will be performed using" \
+                "a remote DNS TXT record." \
                 "" \
                 "Options:" \
                 "  --skip-version-check  Skip remote version check"
@@ -945,7 +966,8 @@ case $1 in
                     printf "\nYou are using the latest version.\n"
                 fi
             else
-                printf "Unable to check for updates.\n"
+                printf "\nError: Unable to check for updates.\n" >&2
+                exit 1
             fi
         fi
     ;;

@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="2.1.0"
+version="2.1.1"
 
 : <<=cut
 =head1 NAME
@@ -849,17 +849,17 @@ pihole_munin_help() {
                         "Sensitive variables (e.g., password or app_password)" \
                         "will be masked."
                 ;;
-                "enable")
+                "enable"|"install")
                     printf "%s\n" \
-                        "Usage: admin enable [<plugin list>]" \
+                        "Usage: admin $2 [<plugin list>]" \
                         "" \
                         "Install pihole_munin_ and enable all plugins."
                 ;;
-                "disable")
+                "disable"|"uninstall")
                     printf "%s\n" \
-                        "Usage: admin disable [<plugin list>]" \
+                        "Usage: admin $2 [<plugin list>]" \
                         "" \
-                        "Disables all pihole_munin_ plugins."
+                        "Disable all pihole_munin_ plugins."
                 ;;
                 "update")
                     printf "%s\n" \
@@ -878,12 +878,12 @@ pihole_munin_help() {
                         "Usage: admin <subcommand> [args]" \
                         "" \
                         "Subcommands:" \
-                        "  add         Add or update a configuration variable" \
-                        "  remove      Remove a configuration variable" \
-                        "  list        List configured variables" \
-                        "  enable      Install and enable all pihole_munin_ plugins" \
-                        "  disable     Disable all pihole_munin_ plugins" \
-                        "  update      Update pihole_munin_" \
+                        "  add                  Add or update a configuration variable" \
+                        "  remove               Remove a configuration variable" \
+                        "  list                 List configured variables" \
+                        "  enable, install      Install and enable all pihole_munin_ plugins" \
+                        "  disable, uninstall   Disable all pihole_munin_ plugins" \
+                        "  update               Update pihole_munin_" \
                         "" \
                         "Run '$0 help admin <subcommand>' for more info."
                 ;;
@@ -894,12 +894,12 @@ pihole_munin_help() {
                         "Usage: admin <subcommand> [args]" \
                         "" \
                         "Subcommands:" \
-                        "  add         Add or update a configuration variable" \
-                        "  remove      Remove a configuration variable" \
-                        "  list        List configured variables" \
-                        "  enable      Install and enable all pihole_munin_ plugins" \
-                        "  disable     Disable all pihole_munin_ plugins" \
-                        "  update      Update pihole_munin_" \
+                        "  add                  Add or update a configuration variable" \
+                        "  remove               Remove a configuration variable" \
+                        "  list                 List configured variables" \
+                        "  enable, install      Install and enable all pihole_munin_ plugins" \
+                        "  disable, uninstall   Disable all pihole_munin_ plugins" \
+                        "  update               Update pihole_munin_" \
                         "" \
                         "Run '$0 help admin <subcommand>' for more info."
                 ;;
@@ -946,10 +946,10 @@ case $1 in
     ;;
     "admin")
         case $2 in
-            "enable")
+            "enable"|"install")
                 pihole_munin_enable "$@"
             ;;
-            "disable")
+            "disable"|"uninstall")
                 pihole_munin_disable "$@"
             ;;
             "update")

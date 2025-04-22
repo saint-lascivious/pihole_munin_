@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="1.1.1"
+version="2.0.0"
 
 : <<=cut
 =head1 NAME
@@ -57,11 +57,11 @@ This is a wildcard plugin.
 
 =head1 USAGE
 
-Use the 'admin' command to automatically install all plugins at once.
+Use the 'admin' command to automatically install pihole_munin_ and enable all plugins at once.
 
 E.g.
 
-  s@int:~$ ./pihole_munin_ admin install
+  s@int:~$ ./pihole_munin_ admin enable
 
 Alternatively, you can install manually link this plugin to /etc/munin/plugins/ as the desired plugin(s) and restart the munin-node.
 
@@ -167,7 +167,7 @@ saint-lascivious (Hayden Pearce), 2025
 GNU GPLv3
 =cut
 
-target="${proto:-http}://${host:-127.0.0.1}:${port:-80}${api:-/api}"
+api_target="${proto:-http}://${host:-127.0.0.1}:${port:-80}${api:-/api}"
 
 auth_url="${auth_url:-/auth}"
 dns_blocking_url="${dns_blocking_url:-/dns/blocking}"
@@ -222,20 +222,19 @@ pihole_munin_auth() {
             "CLI Password not found and no App Password is set." >&2
         exit 1
     fi
-    auth_response=$(curl -k -s -S -o - -w "%{http_code}" "${target}${auth_url}" -d "{\"password\":\"${password}\"}")
+    auth_response=$(curl -k -s -S -o - -w "%{http_code}" "${api_target}${auth_url}" -d "{\"password\":\"${password}\"}")
     auth_response_json=$(printf "%s" "${auth_response}" | head -c -3)
     auth_response_status=$(printf "%s" "${auth_response}" | tail -c 3)
     if [ "${auth_response_status}" -ne 200 ]; then
         printf "%s\n" \
-            "Error: Could not get Session ID" \
-            "HTTP status code was: '${auth_response_status}'" >&2
+            "Error: Could not get Session ID." \
+            "HTTP status code was '${auth_response_status}'" >&2
         exit 1
     fi
     sid=$(printf "%s" "${auth_response_json}" | jq -r '.session.sid')
 }
 
 pihole_munin_state() {
-    api_call="curl -G -k -s '$1?sid=${sid}'"
     state_file="${MUNIN_PLUGSTATE:-/tmp}/$(printf "%s" "$1" | sed -E 's/[^a-zA-Z0-9]/_/g').state"
     if [ -f "${state_file}" ]; then
         state_time=$(head -n 1 "${state_file}")
@@ -250,7 +249,8 @@ pihole_munin_state() {
             fi
         fi
     fi
-    response=$(eval "${api_call}") || return 1
+    [ -z "${sid}" ] && pihole_munin_auth
+    response=$(curl -G -k -s "${api_target}$1?sid=${sid}") || return 1
     if ! printf "%s" "${response}" | jq empty >/dev/null 2>&1; then
         return 1
     fi
@@ -362,7 +362,6 @@ pihole_munin_config() {
             pihole_munin_print "status" "Pi-hole blocking status" "blocking status" "${status_crit:-0:1}" "${status_warn:-1:1}"
         ;;
         *)
-            pihole_munin_auth
             case ${pihole_munin_id} in
                 "cache_by_type")
                     cache_by_type_crit=""
@@ -373,7 +372,7 @@ pihole_munin_config() {
                         "graph_info This graph shows Pi-hole's cached records by type" \
                         "graph_vlabel cached records" \
                         "graph_category ${graph_category}"
-                    cache_by_type_response=$(pihole_munin_state "${target}${info_metrics_url}") || exit 1
+                    cache_by_type_response=$(pihole_munin_state "${info_metrics_url}") || exit 1
                     printf "%s" "${cache_by_type_response}" | jq -r '.metrics.dns.cache.content[] | .name' \
                     | while read -r key; do
                         for type in "valid" "stale"; do
@@ -404,7 +403,7 @@ pihole_munin_config() {
                         "graph_info This graph shows active and total Pi-hole clients" \
                         "graph_vlabel clients" \
                         "graph_category ${graph_category}"
-                    clients_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+                    clients_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
                     printf "%s" "${clients_response}" | jq -r '.clients | keys[]' \
                     | while read -r key; do
                         case $key in
@@ -426,7 +425,7 @@ pihole_munin_config() {
                         "graph_info This graph shows various Pi-hole dnsmasq statistics" \
                         "graph_vlabel count" \
                         "graph_category ${graph_category}"
-                    dnsmasq_response=$(pihole_munin_state "${target}${info_ftl_url}") || exit 1
+                    dnsmasq_response=$(pihole_munin_state "${info_ftl_url}") || exit 1
                     printf "%s" "${dnsmasq_response}" | jq -r '.ftl.dnsmasq | to_entries[] | .key' \
                     | while read -r key; do
                         dnsmasq_label=$(printf "%s" "$key" | sed 's/_/ /g')
@@ -444,7 +443,7 @@ pihole_munin_config() {
                         "graph_info This graph shows Pi-hole queries by status" \
                         "graph_vlabel queries" \
                         "graph_category ${graph_category}"
-                    queries_by_status_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+                    queries_by_status_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
                     printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | keys[]' \
                     | while read -r key; do
                         eval "queries_by_status_crit=\${queries_by_status_${key}_crit:-}"
@@ -461,7 +460,7 @@ pihole_munin_config() {
                         "graph_info This graph shows Pi-hole queries by record type" \
                         "graph_vlabel queries" \
                         "graph_category ${graph_category}"
-                    queries_by_type_response=$(pihole_munin_state "${target}${stats_query_types_url}" ) || exit 1
+                    queries_by_type_response=$(pihole_munin_state "${stats_query_types_url}" ) || exit 1
                     printf "%s" "${queries_by_type_response}" | jq -r '.types | keys[]' \
                     | while read -r key; do
                         eval "queries_by_type_crit=\${queries_by_type_${key}_crit:-}"
@@ -478,7 +477,7 @@ pihole_munin_config() {
                         "graph_info This graph shows Pi-hole replies" \
                         "graph_vlabel replies" \
                         "graph_category ${graph_category}"
-                    replies_response=$(pihole_munin_state "${target}${info_metrics_url}" ) || exit 1
+                    replies_response=$(pihole_munin_state "${info_metrics_url}" ) || exit 1
                     printf "%s" "${replies_response}" | jq -r '.metrics.dns.replies | keys[]' \
                     | while read -r key; do
                         eval "replies_crit=\${replies_${key}_crit:-}"
@@ -495,7 +494,7 @@ pihole_munin_config() {
                         "graph_info This graph shows Pi-hole replies by record type" \
                         "graph_vlabel replies" \
                         "graph_category ${graph_category}"
-                    replies_by_type_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+                    replies_by_type_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
                     printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | keys[]' \
                     | while read -r key; do
                         eval "replies_by_type_crit=\${replies_by_type_${key}_crit:-}"
@@ -509,10 +508,9 @@ pihole_munin_config() {
 }
 
 pihole_munin_fetch() {
-    [ -z "${sid}" ] && pihole_munin_auth
     case ${pihole_munin_id} in
         "cache")
-            cache_response=$(pihole_munin_state "${target}${info_metrics_url}" ) || exit 1
+            cache_response=$(pihole_munin_state "${info_metrics_url}" ) || exit 1
             printf "%s" "${cache_response}" | jq -r '
                 .metrics.dns.cache as $cache |
                 [
@@ -524,23 +522,23 @@ pihole_munin_fetch() {
                 | "\(.key).value \(.value)"'
         ;;
         "cache_by_type")
-            cache_by_type_response=$(pihole_munin_state "${target}${info_metrics_url}" ) || exit 1
+            cache_by_type_response=$(pihole_munin_state "${info_metrics_url}" ) || exit 1
             printf "%s" "${cache_by_type_response}" | jq -r '.metrics.dns.cache.content[] | "\(.name).value \(.count.valid)\n\(.name)_STALE.value \(.count.stale)"'
         ;;
         "clients")
-            clients_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+            clients_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
             printf "%s" "${clients_response}" | jq -r '.clients | to_entries[] | "\(.key).value \(.value)"'
         ;;
         "dnsmasq")
-            dnsmasq_response=$(pihole_munin_state "${target}${info_ftl_url}" ) || exit 1
+            dnsmasq_response=$(pihole_munin_state "${info_ftl_url}" ) || exit 1
             printf "%s" "${dnsmasq_response}" | jq -r '.ftl.dnsmasq | to_entries[] | "\(.key).value \(.value)"'
         ;;
         "domains")
-            domains_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+            domains_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
             printf "%s" "${domains_response}" | jq -r '.gravity | "\("domains_being_blocked.value") \(.domains_being_blocked)"'
         ;;
         "gravity")
-            gravity_response=$(pihole_munin_state "${target}${info_ftl_url}" ) || exit 1
+            gravity_response=$(pihole_munin_state "${info_ftl_url}" ) || exit 1
             printf "%s" "${gravity_response}" | jq -r '
                 .ftl.database as $gravity |
                 [
@@ -554,15 +552,15 @@ pihole_munin_fetch() {
                 | "\(.key).value \(.value)"'
         ;;
         "percent")
-            percent_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+            percent_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
             printf "%s" "${percent_response}" | jq -r '.queries | to_entries[] | select(.key == "percent_blocked") | "\(.key).value \(.value | tonumber | . * 100 | round / 100)"'
         ;;
         "privacy")
-            ftl_response=$(pihole_munin_state "${target}${info_ftl_url}" ) || exit 1
+            ftl_response=$(pihole_munin_state "${info_ftl_url}" ) || exit 1
             printf "%s" "${ftl_response}" | jq -r '"privacy_level.value \(.ftl.privacy_level)"'
         ;;
         "queries")
-            queries_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+            queries_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
             printf "%s" "${queries_response}" | jq -r '
                 .queries as $queries |
                 [
@@ -576,23 +574,23 @@ pihole_munin_fetch() {
                 | "\(.key).value \(.value)"'
         ;;
         "queries_by_status")
-            queries_by_status_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+            queries_by_status_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
             printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | to_entries[] | "\(.key).value \(.value)"'
         ;;
         "queries_by_type")
-            queries_by_type_response=$(pihole_munin_state "${target}${stats_query_types_url}" ) || exit 1
+            queries_by_type_response=$(pihole_munin_state "${stats_query_types_url}" ) || exit 1
             printf "%s" "${queries_by_type_response}" | jq -r '.types | to_entries[] | "\(.key).value \(.value)"'
         ;;
         "replies")
-            replies_response=$(pihole_munin_state "${target}${info_metrics_url}" ) || exit 1
+            replies_response=$(pihole_munin_state "${info_metrics_url}" ) || exit 1
             printf "%s" "${replies_response}" | jq -r '.metrics.dns.replies | to_entries[] | "\(.key).value \(.value)"'
         ;;
         "replies_by_type")
-            replies_by_type_response=$(pihole_munin_state "${target}${stats_summary_url}" ) || exit 1
+            replies_by_type_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
             printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | to_entries[] | "\(.key).value \(.value)"'
         ;;
         "status")
-            status_response=$(pihole_munin_state "${target}${dns_blocking_url}" ) || exit 1
+            status_response=$(pihole_munin_state "${dns_blocking_url}" ) || exit 1
             printf "%s" "${status_response}" | jq -r '.blocking' \
             | while read -r key; do
                 case $key in
@@ -637,7 +635,7 @@ pihole_munin_root() {
     exec sudo "$0" "$@" || { printf "Error: Failed to acquire root privileges.\n" >&2; return 1; }
 }
 
-pihole_munin_uninstall() {
+pihole_munin_disable() {
     pihole_munin_root "$@"
     if [ -d "${plugins_available}" ]; then
         rm -f "${plugins_available}/pihole_munin_" || { printf "Error: Failed to remove plugin from available.\n" >&2; return 1; }
@@ -647,9 +645,9 @@ pihole_munin_uninstall() {
     fi
 }
 
-pihole_munin_install() {
+pihole_munin_enable() {
     pihole_munin_root "$@"
-    pihole_munin_uninstall "$@" || { printf "Error: Uninstallation failed.\n" >&2; return 1; }
+    pihole_munin_disable "$@" || { printf "Error: Uninstallation failed.\n" >&2; return 1; }
     [ -d "${plugins_available}" ] || { printf "Error: Directory not found: %s\n" "${plugins_available}" >&2; return 1; }
     [ -d "${plugins_enabled}" ] || { printf "Error: Directory not found: %s\n" "${plugins_enabled}" >&2; return 1; }
     cp -f "$0" "${plugins_available}/pihole_munin_" || { printf "Error: Failed to copy plugin to available directory.\n" >&2; return 1; }
@@ -657,6 +655,49 @@ pihole_munin_install() {
     for plugin in $plugins; do
         ln -sf "${plugins_available}/pihole_munin_" "${plugins_enabled}/pihole_munin_${plugin}" || { printf "Error: Failed to create symlink for plugin: %s\n" "${plugin}" >&2; return 1; }
     done
+}
+
+pihole_munin_update() {
+    pihole_munin_root "$@"
+    tmp_script="$(mktemp /tmp/pihole_munin_update.XXXXXX)" || {
+        printf "Error: Failed to create temporary update script.\n" >&2
+        return 1
+    }
+    repo_url="https://github.com/saint-lascivious/pihole_munin_"
+    raw_url="${repo_url}/raw/master/pihole_munin_"
+    cat > "${tmp_script}" << EOF
+#!/bin/sh
+
+[ -f "${plugins_available}/pihole_munin_" ] || {
+    printf "Error: Update target '%s' not found.\n" "${plugins_available}/pihole_munin_" >&2
+    rm -f "${tmp_script}"
+    return 1
+}
+
+update_pihole_munin_() {
+    if curl -fsSL "$raw_url" -o "${plugins_available}" -O "pihole_munin_"; then
+        chmod 755 "${plugins_available}/pihole_munin_" || {
+            printf "Error: Failed to set permissions on updated script.\n" >&2
+            rm -f "${tmp_script}"
+            exit 1
+        }
+        printf "Update complete.\n"
+    else
+        printf "Error: Unable to fetch update.\n" >&2
+        return 1
+    fi
+}
+
+update_pihole_munin_
+
+rm -- "$0"
+EOF
+    chmod 755 "${tmp_script}" || {
+        printf "Error: Failed to set permissions on update script.\n" >&2
+        rm -f "${tmp_script}"
+        return 1
+    }
+    exec /bin/sh "${tmp_script}"
 }
 
 pihole_munin_configure() {
@@ -744,15 +785,18 @@ pihole_munin_help() {
                 "Usage: $0 <command> [<args>]" \
                 "" \
                 "Available commands:" \
-                "  admin        Manage plugin configuration and installation" \
-                "  version      Show plugin version" \
-                "  help         Show help for a specific command" \
+                "  admin        Manage plugin configuration and installation." \
+                "  version      Display plugin version and optionally check for updates." \
+                "  help         Show detailed help information." \
                 "" \
                 "Run '$0 help <command>' for more information on a command."
         ;;
         "help")
             printf "%s\n" \
                 "Usage: help <command> [<subcommand>]" \
+                "" \
+                "Displays general or detailed help for commands and subcommands." \
+                "" \
                 "Example: help admin add"
         ;;
         "admin")
@@ -789,19 +833,26 @@ pihole_munin_help() {
                         "Sensitive variables (e.g., password or app_password)" \
                         "will be masked."
                 ;;
-                "install")
+                "enable")
                     printf "%s\n" \
-                        "Usage: admin install" \
+                        "Usage: admin enable [<plugin list>]" \
                         "" \
-                        "Installs and enables all pihole_munin_ plugins." \
-                        "Creates symlinks in the Munin plugins directory."
+                        "Install pihole_munin_ and enable all plugins."
                 ;;
-                "uninstall")
+                "disable")
                     printf "%s\n" \
-                        "Usage: admin uninstall" \
+                        "Usage: admin disable [<plugin list>]" \
                         "" \
-                        "Uninstalls and disables all pihole_munin_ plugins." \
-                        "Removes symlinks in the Munin plugins directory."
+                        "Disables all pihole_munin_ plugins."
+                ;;
+                "update")
+                    printf "%s\n" \
+                        "Usage: admin update" \
+                        "" \
+                        "Updates the pihole_munin_ script to the latest version." \
+                        "" \
+                        "This command will download the latest version from" \
+                        "the GitHub repository and replace the current script."
                 ;;
                 "help")
                     pihole_munin_help admin "${2:-}"
@@ -814,22 +865,27 @@ pihole_munin_help() {
                         "  add         Add or update a configuration variable" \
                         "  remove      Remove a configuration variable" \
                         "  list        List configured variables" \
-                        "  install     Enable all pihole_munin_ plugins" \
-                        "  uninstall   Disable all pihole_munin_ plugins" \
+                        "  enable      Install and enable all pihole_munin_ plugins" \
+                        "  disable     Disable all pihole_munin_ plugins" \
+                        "  update      Update pihole_munin_" \
                         "" \
                         "Run '$0 help admin <subcommand>' for more info."
                 ;;
                 * )
-                    printf "%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
+                    printf "%s\n" \
                         "Unknown admin subcommand: $2" \
+                        "" \
                         "Usage: admin <subcommand> [args]" \
+                        "" \
                         "Subcommands:" \
                         "  add         Add or update a configuration variable" \
                         "  remove      Remove a configuration variable" \
                         "  list        List configured variables" \
-                        "  install     Enable all pihole_munin_ plugins" \
+                        "  enable      Install and enable all pihole_munin_ plugins" \
+                        "  disable     Disable all pihole_munin_ plugins" \
+                        "  update      Update pihole_munin_" \
+                        "" \
                         "Run '$0 help admin <subcommand>' for more info."
-                    return 1
                 ;;
             esac
         ;;
@@ -864,7 +920,7 @@ if [ -z "$MUNIN_CAP_DIRTYCONFIG" ] && [ -z "$MUNIN_MASTER_IP" ]; then
         ;;
         "config"|"fetch"|"autoconf"|"suggest")
             printf "Error: '%s' can only be run by Munin.\n" "$1" >&2
-            if ! command -v "munin-run" >/dev/null 2>&1; then
+            if command -v "munin-run" >/dev/null 2>&1; then
                 printf "%s\n" \
                     "" \
                     "Use 'munin-run' to run this command instead." \
@@ -893,11 +949,14 @@ case $1 in
     ;;
     "admin")
         case $2 in
-            "install")
-                pihole_munin_install "$@"
+            "enable")
+                pihole_munin_enable "$@"
             ;;
-            "uninstall")
-                pihole_munin_uninstall "$@"
+            "disable")
+                pihole_munin_disable "$@"
+            ;;
+            "update")
+                pihole_munin_update "$@"
             ;;
             "list")
                 pihole_munin_configure "list"
@@ -918,14 +977,14 @@ case $1 in
     ;;
     "help")
         case $2 in
-            "version")
-                pihole_munin_help version
+            ""|"main")
+                pihole_munin_help main
             ;;
             "admin")
                 pihole_munin_help admin "${3:-}"
             ;;
-            ""|"main")
-                pihole_munin_help main
+            "version")
+                pihole_munin_help version
             ;;
             *)
                 printf "Unknown help topic: %s\n\n" "$2"
@@ -961,12 +1020,16 @@ case $1 in
             remote_version=$(dig +short TXT pihole-munin.sainternet.xyz | sed -e 's/[^.0-9]//g')
             if [ -n "$remote_version" ]; then
                 if pihole_munin_check "$remote_version" "$version"; then
-                    printf "\nA newer version is available: %s\n" "$remote_version"
+                    printf "%s\n" \
+                    "A newer version is available: $remote_version" \
+                    "" \
+                    "Run '$0 admin update' to update the plugin" \
+                    "or run '$0 help admin update' for more information."
                 else
-                    printf "\nYou are using the latest version.\n"
+                    printf "%s\n" "You are using the latest version."
                 fi
             else
-                printf "\nError: Unable to check for updates.\n" >&2
+                printf "%s\n" "Error: Unable to check for updates." >&2
                 exit 1
             fi
         fi

@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="2.0.0"
+version="2.1.0"
 
 : <<=cut
 =head1 NAME
@@ -234,6 +234,21 @@ pihole_munin_auth() {
     sid=$(printf "%s" "${auth_response_json}" | jq -r '.session.sid')
 }
 
+pihole_munin_logout() {
+    [ -z "$sid" ] && return 0
+    logout_response=$(curl -k -s -S -o - -w "%{http_code}" -X DELETE "${api_target}${auth_url}" \
+        -H "accept: application/json" \
+        -H "Cookie: sid=${sid}")
+    case "$logout_response" in
+        "200"|"204")
+            :
+        ;;
+        *)
+            printf "Warning: logout failed (HTTP %s)\n" "$logout_response" >&2
+        ;;
+    esac
+}
+
 pihole_munin_state() {
     state_file="${MUNIN_PLUGSTATE:-/tmp}/$(printf "%s" "$1" | sed -E 's/[^a-zA-Z0-9]/_/g').state"
     if [ -f "${state_file}" ]; then
@@ -259,6 +274,7 @@ pihole_munin_state() {
             "${now}" \
             "${response}"
     } | tee "${state_file}" | tail -n +2
+    [ -n "${sid}" ] && pihole_munin_logout
 }
 
 pihole_munin_config() {
@@ -912,31 +928,12 @@ pihole_munin_help() {
     esac
 }
 
-if [ -z "$MUNIN_CAP_DIRTYCONFIG" ] && [ -z "$MUNIN_MASTER_IP" ]; then
-    case "$1" in
-        "")
-            pihole_munin_help main
-            exit 0
-        ;;
-        "config"|"fetch"|"autoconf"|"suggest")
-            printf "Error: '%s' can only be run by Munin.\n" "$1" >&2
-            if command -v "munin-run" >/dev/null 2>&1; then
-                printf "%s\n" \
-                    "" \
-                    "Use 'munin-run' to run this command instead." \
-                    "" \
-                    "Example:" \
-                    "  munin-run pihole_munin_${pihole_munin_id} $1"
-            fi
-            exit 1
-        ;;
-    esac
-fi
-
 case $1 in
     "config")
         pihole_munin_config
-        [ "$MUNIN_CAP_DIRTYCONFIG" = "1" ] && pihole_munin_fetch
+        if [ "${MUNIN_CAP_DIRTYCONFIG}" = "1" ]; then
+            pihole_munin_fetch
+        fi
     ;;
     ""|"fetch")
         pihole_munin_fetch

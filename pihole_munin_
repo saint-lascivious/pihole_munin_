@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="2.1.1"
+version="2.1.2"
 
 : <<=cut
 =head1 NAME
@@ -61,21 +61,49 @@ Use the 'admin' command to automatically install pihole_munin_ and enable all pl
 
 E.g.
 
-  s@int:~$ ./pihole_munin_ admin enable
+  ./pihole_munin_ admin enable
 
-Alternatively, you can install manually link this plugin to /etc/munin/plugins/ as the desired plugin(s) and restart the munin-node.
+Alternatively, you can install manually and link this plugin to /etc/munin/plugins/ as the desired plugin(s) and restart munin-node.
 
 E.g.
 
-  s@int:~$ sudo mv pihole_munin_ /usr/share/munin/plugins/pihole_munin_
-  s@int:~$ sudo chmod +x /usr/share/munin/plugins/pihole_munin_
-  s@int:~$ sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_blocked
-  s@int:~$ sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_cache
-  ...
+  sudo mv pihole_munin_ /usr/share/munin/plugins/pihole_munin_
+  sudo chmod +x /usr/share/munin/plugins/pihole_munin_
 
-etc.
+and then,
+
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_cache
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_cache_by_type
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_clients
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_dnsmasq
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_domains
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_gravity
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_percent
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_privacy
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_queries
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_queries_by_status
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_queries_by_type
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_replies
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_replies_by_type
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+  /etc/munin/plugins/pihole_munin_status
+
+and then,
+
+  sudo systemctl restart munin-node.service
 
 =head1 CONFIGURATION
 
@@ -146,17 +174,17 @@ The plugin can be configured manually, or via the command line using the admin c
 
 E.g.
 
-  s@int:~$ ./pihole_munin_ admin add <var> <val>
-  s@int:~$ ./pihole_munin_ admin remove <var>
-  s@int:~$ ./pihole_munin_ admin list
+  ./pihole_munin_ admin add <var> <val>
+  ./pihole_munin_ admin remove <var>
+  ./pihole_munin_ admin list
 
 Variables MUST be entered without the env. prefix, and values SHOULD be without encapsulating quotation.
 
 E.g.
 
-    s@int:~$ ./pihole_munin_ admin add graph_category dns
-    s@int:~$ ./pihole_munin_ admin add clients_active_warn 1:50
-    s@int:~$ ./pihole_munin_ admin add clients_total_warn 100
+  ./pihole_munin_ admin add graph_category dns
+  ./pihole_munin_ admin add clients_active_warn 1:50
+  ./pihole_munin_ admin add clients_total_warn 100
 
 =head1 AUTHOR
 
@@ -798,28 +826,28 @@ pihole_munin_help() {
     case $1 in
         ""|"main")
             printf "%s\n" \
-                "Usage: $0 <command> [<args>]" \
+                "Usage: $0 <command>" \
                 "" \
-                "Available commands:" \
-                "  admin        Manage plugin configuration and installation." \
-                "  version      Display plugin version and optionally check for updates." \
-                "  help         Show detailed help information." \
+                "Commands:" \
+                "  -a, admin    Manage plugin configuration and installation." \
+                "  -v, version  Display plugin version and optionally check for updates." \
+                "  -h, help     Show detailed help information." \
                 "" \
                 "Run '$0 help <command>' for more information on a command."
         ;;
-        "help")
+        "-h"|"help")
             printf "%s\n" \
-                "Usage: help <command> [<subcommand>]" \
+                "Usage: $1 <command> [<subcommand>]" \
                 "" \
                 "Displays general or detailed help for commands and subcommands." \
                 "" \
-                "Example: help admin add"
+                "Example: $1 admin add"
         ;;
-        "admin")
+        "-a"|"admin")
             case $2 in
-                "add")
+                "-A"|"add")
                     printf "%s\n" \
-                        "Usage: admin add <var> <value>" \
+                        "Usage: $1 $2 <var> <value>" \
                         "" \
                         "Adds or updates a plugin configuration variable." \
                         "" \
@@ -827,94 +855,97 @@ pihole_munin_help() {
                         "is sensitive (e.g., password or app_password)." \
                         "" \
                         "Examples:" \
-                        "  admin add host 192.168.1.10" \
-                        "  admin add user pihole"
+                        "  $1 $2 host 192.168.1.10" \
+                        "  $1 $2 user pihole"
                 ;;
-                "remove")
+                "-r"|"remove")
                     printf "%s\n" \
-                        "Usage: admin remove <var>" \
+                        "Usage: $1 $2 <var>" \
                         "" \
                         "Removes a variable from the plugin configuration file." \
                         "" \
                         "Examples:" \
-                        "  admin remove host" \
-                        "  admin remove user"
+                        "  $1 $2 host" \
+                        "  $1 $2 user"
                 ;;
-                "list")
+                "-l"|"list")
                     printf "%s\n" \
-                        "Usage: admin list" \
+                        "Usage: $1 $2" \
                         "" \
                         "Displays all configured plugin variables." \
                         "" \
                         "Sensitive variables (e.g., password or app_password)" \
                         "will be masked."
                 ;;
-                "enable"|"install")
+                "-e"|"-i"|"enable"|"install")
                     printf "%s\n" \
-                        "Usage: admin $2 [<plugin list>]" \
+                        "Usage: $1 $2" \
                         "" \
                         "Install pihole_munin_ and enable all plugins."
                 ;;
-                "disable"|"uninstall")
+                "-d"|"-u"|"disable"|"uninstall")
                     printf "%s\n" \
-                        "Usage: admin $2 [<plugin list>]" \
+                        "Usage: $1 $2" \
                         "" \
                         "Disable all pihole_munin_ plugins."
                 ;;
-                "update")
+                "-U"|"update")
                     printf "%s\n" \
-                        "Usage: admin update" \
+                        "Usage: $1 $2" \
                         "" \
                         "Updates the pihole_munin_ script to the latest version." \
                         "" \
                         "This command will download the latest version from" \
                         "the GitHub repository and replace the current script."
                 ;;
-                "help")
+                "-h"|"help")
                     pihole_munin_help admin "${2:-}"
                 ;;
                 "" )
                     printf "%s\n" \
-                        "Usage: admin <subcommand> [args]" \
+                        "Usage: $1 <subcommand>" \
                         "" \
                         "Subcommands:" \
-                        "  add                  Add or update a configuration variable" \
-                        "  remove               Remove a configuration variable" \
-                        "  list                 List configured variables" \
-                        "  enable, install      Install and enable all pihole_munin_ plugins" \
-                        "  disable, uninstall   Disable all pihole_munin_ plugins" \
-                        "  update               Update pihole_munin_" \
+                        "  -a, add                      Add or update a plugin configuration variable." \
+                        "  remove                       Remove a variable from the plugin configuration file." \
+                        "  list                         List all configured plugin variables." \
+                        "  -e, -i, enable, install      Install pihole_munin_ and enable all plugins." \
+                        "  -d, -u, disable, uninstall   Disable all pihole_munin_ plugins." \
+                        "  -U, update                   Update pihole_munin_ to the latest version." \
+                        "  -h , help [<subcommand>]     Show help for the $1 command or a specific subcommand." \
                         "" \
                         "Run '$0 help admin <subcommand>' for more info."
                 ;;
                 * )
                     printf "%s\n" \
-                        "Unknown admin subcommand: $2" \
+                        "Unknown $1 subcommand: $2" \
                         "" \
-                        "Usage: admin <subcommand> [args]" \
+                        "Usage: $1 <subcommand>" \
                         "" \
                         "Subcommands:" \
-                        "  add                  Add or update a configuration variable" \
-                        "  remove               Remove a configuration variable" \
-                        "  list                 List configured variables" \
-                        "  enable, install      Install and enable all pihole_munin_ plugins" \
-                        "  disable, uninstall   Disable all pihole_munin_ plugins" \
-                        "  update               Update pihole_munin_" \
+                        "  -a, add                      Add or update a plugin configuration variable." \
+                        "  remove                       Remove a variable from the plugin configuration file." \
+                        "  list                         List all configured plugin variables." \
+                        "  -e, -i, enable, install      Install pihole_munin_ and enable all plugins." \
+                        "  -d, -u, disable, uninstall   Disable all pihole_munin_ plugins." \
+                        "  -U, update                   Update pihole_munin_ to the latest version." \
+                        "  -h , help [<subcommand>]     Show help for the $1 command or a specific subcommand." \
                         "" \
                         "Run '$0 help admin <subcommand>' for more info."
                 ;;
             esac
         ;;
-        "version")
+        "-v"|"version")
             printf "%s\n" \
-                "Usage: version [--skip-version-check]" \
+                "Usage: $1 [<option>]" \
                 "" \
                 "Displays the plugin version string. If not skipped," \
                 "a check for a newer version will be performed using" \
                 "a remote DNS TXT record." \
                 "" \
                 "Options:" \
-                "  --skip-version-check  Skip remote version check"
+                "  -s, --skip-version-check     Skip remote version check." \
+                "  -h, help                     Show help for the $1 command." \
         ;;
         * )
             if [ -n "$2" ]; then
@@ -944,44 +975,44 @@ case $1 in
     "suggest")
         pihole_munin_suggest
     ;;
-    "admin")
+    "-a"|"admin")
         case $2 in
-            "enable"|"install")
+            "-e"|"-i"|"enable"|"install")
                 pihole_munin_enable "$@"
             ;;
-            "disable"|"uninstall")
+            "-d"|"-u"|"disable"|"uninstall")
                 pihole_munin_disable "$@"
             ;;
-            "update")
+            "-U"|"update")
                 pihole_munin_update "$@"
             ;;
-            "list")
+            "-l"|"list")
                 pihole_munin_configure "list"
             ;;
-            "add"|"remove")
+            "-A"|"-r"|"add"|"remove")
                 pihole_munin_configure "$2" "$@"
             ;;
-            "help")
-                pihole_munin_help admin "${3:-}"
+            "-h"|"help")
+                pihole_munin_help "$2" "${3:-}"
             ;;
             "")
-                pihole_munin_help admin
+                pihole_munin_help "$1"
             ;;
             *)
-                pihole_munin_help admin "$2"
+                pihole_munin_help "$1" "$2"
             ;;
         esac
     ;;
-    "help")
+    "-h"|"help")
         case $2 in
             ""|"main")
                 pihole_munin_help main
             ;;
-            "admin")
-                pihole_munin_help admin "${3:-}"
+            "-a"|"admin")
+                pihole_munin_help "$2" "${3:-}"
             ;;
-            "version")
-                pihole_munin_help version
+            "-v"|"version")
+                pihole_munin_help "$2"
             ;;
             *)
                 printf "Unknown help topic: %s\n\n" "$2"
@@ -989,12 +1020,12 @@ case $1 in
             ;;
         esac
     ;;
-    "version")
+    "-v"|"version")
         shift
         skip_check=0
         show_help=0
-        for arg in "$@"; do
-            case "$arg" in
+        for option in "$@"; do
+            case "$option" in
                 "--skip-version-check")
                     skip_check=1
                 ;;
@@ -1002,7 +1033,7 @@ case $1 in
                     show_help=1
                 ;;
                 *)
-                    printf "Unknown option: %s\n\n" "$arg"
+                    printf "Unknown option: %s\n\n" "$option"
                     pihole_munin_help version
                     exit 1
                 ;;

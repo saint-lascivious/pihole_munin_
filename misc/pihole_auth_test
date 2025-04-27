@@ -13,7 +13,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="1.0.0"
+version="1.0.1"
 
 api_target="${PROTO:-http}://${HOST:-127.0.0.1}:${PORT:-80}${API:-/api}"
 auth_url="${AUTH:-/auth}"
@@ -22,22 +22,22 @@ cli_password="${CLI_PASSWORD:-/etc/pihole/cli_pw}"
 app_password="${APP_PASSWORD:-}"
 pihole_password="${PASSWORD:-}"
 
-printf "🐛 Debugging Pi-hole API with pihole_auth_test version: %s\n" "${version}"
+printf "🐛 Debugging Pi-hole API with pihole_auth_test version: %s\n\n" "${version}"
 printf "🧰 Checking dependencies...\n"
 if command -v curl >/dev/null 2>&1; then
-    printf "✅ Using curl: %s\n" "$(curl --version | head -n 1)"
+    printf "  ✅ curl: %s\n" "$(curl --version | head -n 1)"
     if command -v jq >/dev/null 2>&1; then
-        printf "✅ Using jq: %s\n" "$(jq --version)"
+        printf "  ✅ jq: %s\n" "$(jq --version)"
     else
-        printf "❌ jq not found.\n" >&2
+        printf "  ❌ jq not found.\n" >&2
         exit 1
     fi
 else
-    printf "❌ curl not found.\n" >&2
+    printf "  ❌ curl not found.\n" >&2
     exit 1
 fi
 
-printf "🔎 Checking authentication requirement for %s...\n" "$api_target"
+printf "\n🔎 Checking authentication requirement for %s...\n" "$api_target"
 auth_check=$(curl -k -s -w "%{http_code}" "${api_target}${auth_url}" -H 'accept: application/json')
 check_json=$(printf "%s" "$auth_check" | head -c -3)
 check_code=$(printf "%s" "$auth_check" | tail -c 3)
@@ -45,40 +45,46 @@ auth_required=1
 if [ "$check_code" = "200" ]; then
     if echo "$check_json" | jq -e '.session.valid == true' >/dev/null 2>&1; then
         auth_required=0
-        printf "✅ Auth not required (session already valid)\n"
+        printf "  ✅ Auth not required (session already valid)\n"
     else
-        printf "ℹ️ Auth required (HTTP 200, but session invalid)\n"
+        printf "  ℹ️ Auth required (HTTP 200, but session invalid)\n"
     fi
 elif [ "$check_code" = "401" ]; then
-    printf "ℹ️ Auth required (HTTP 401)\n"
+    printf "  ℹ️ Auth required (HTTP 401)\n"
 else
-    printf "❌ Unexpected auth response: HTTP %s\n" "$check_code" >&2
+    printf "  ❌ Unexpected auth response: HTTP %s\n" "$check_code" >&2
     printf "Response: %s\n" "$check_json" >&2
     exit 1
 fi
 
 if [ "$auth_required" -eq 0 ]; then
     printf "\n🌐 Testing unauthenticated API call to %s...\n" "$test_endpoint"
-    unauth_response=$(curl -k -s -w "\n[HTTP %{http_code}]\n" "${api_target}${test_endpoint}")
-    printf "%s\n" "$unauth_response"    printf "\n✅ No login needed, done.\n"
-    exit 0
+    unauth_code=$(curl -k -s -o /dev/null -w "%{http_code}" "${api_target}${test_endpoint}")
+    if [ "$unauth_code" -eq 200 ]; then
+        printf "  ✅ API query successful (HTTP %s)\n" "$unauth_code"
+        exit 0
+    else
+        printf "  ❌ API query failed (HTTP %s)\n" "$unauth_code" >&2
+        exit 1
+    fi
 fi
 
+printf "\n🔐 Checking credentials...\n"
 if [ -r "$cli_password" ]; then
     if [ ! -s "$cli_password" ]; then
-        printf "❌ CLI password file is empty.\n" >&2
+        printf "  ❌ CLI password file is present but empty.\n" >&2
         exit 1
     fi
     password=$(cat "$cli_password")
-    printf "🔑 Using CLI password from %s\n" "$cli_password"
+    printf "  🔑 Using CLI password from %s\n" "$cli_password"
 elif [ -n "$app_password" ]; then
     password="$app_password"
-    printf "🔑 Using APP password from environment variable\n"
+    printf "  🔑 Using App password from environment variable\n"
 elif [ -n "$pihole_password" ]; then
     password="$pihole_password"
-    printf "🔑 Using fallback password from environment variable\n"
+    printf "  🔑 Using Pi-hole password from environment variable\n"
 else
-    printf "❌ No password provided.\n" >&2
+    printf "  ❌ No password provided.\n" >&2
     exit 1
 fi
 
@@ -88,22 +94,27 @@ auth_json=$(printf "%s" "${auth_response}" | head -c -3)
 auth_code=$(printf "%s" "${auth_response}" | tail -c 3)
 
 if [ "$auth_code" -ne 200 ]; then
-    printf "❌ Auth failed (HTTP %s)\n" "$auth_code" >&2
+    printf "  ❌ Auth failed (HTTP %s)\n" "$auth_code" >&2
     printf "Response: %s\n" "$auth_json" >&2
     exit 1
 fi
 
 sid=$(printf "%s" "$auth_json" | jq -r '.session.sid')
 if [ -z "$sid" ] || [ "$sid" = "null" ]; then
-    printf "❌ No session ID received.\n" >&2
+    printf "  ❌ No session ID received.\n" >&2
     exit 1
 fi
 
-printf "✅ Auth successful, session ID is: %s\n" "$sid"
+printf "  ✅ Auth successful, session ID is: %s\n" "$sid"
 
 printf "\n🔐 Testing authenticated API call to %s...\n" "$test_endpoint"
-auth_response=$(curl -k -s -w "\n[HTTP %{http_code}]\n" "${api_target}${test_endpoint}" -H "Cookie: sid=${sid}")
-printf "%s\n" "$auth_response"
+query_code=$(curl -k -s -o /dev/null -w "%{http_code}" "${api_target}${test_endpoint}?sid=${sid}")
+
+if [ "$query_code" -eq 200 ]; then
+    printf "  ✅ API query successful (HTTP %s)\n" "$query_code"
+else
+    printf "  ❌ API query failed (HTTP %s)\n" "$query_code" >&2
+fi
 
 printf "\n🚪 Logging out...\n"
 logout_code=$(curl -k -s -o /dev/null -w "%{http_code}" -X DELETE "${api_target}${auth_url}" \
@@ -111,8 +122,8 @@ logout_code=$(curl -k -s -o /dev/null -w "%{http_code}" -X DELETE "${api_target}
     -H "Cookie: sid=${sid}")
 
 if [ "$logout_code" -eq 204 ]; then
-    printf "✅ Logout successful (HTTP %s)\n" "$logout_code"
+    printf "  ✅ Logout successful (HTTP %s)\n" "$logout_code"
 else
-    printf "⚠️ Logout failed (HTTP %s)\n" "$logout_code" >&2
+    printf "  ❌ Logout failed (HTTP %s)\n" "$logout_code" >&2
     exit 1
 fi

@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="3.0.0"
+version="3.1.0"
 
 : <<=cut
 =head1 NAME
@@ -242,9 +242,13 @@ if [ -n "$app_password" ]; then
     password="$app_password"
 elif [ -n "$pihole_password" ]; then
     password="$pihole_password"
-elif [ -r "$cli_password" ]; then
-    if [ -s "$cli_password" ]; then
-        password=$(cat "$cli_password")
+elif [ "$host" = "127.0.0.1" ] || [ "$host" = "localhost" ] || [ "$host" = "::" ]; then
+    if [ -r "$cli_password" ]; then
+        if [ -s "$cli_password" ]; then
+            password=$(cat "$cli_password")
+        else
+            password=""
+        fi
     else
         password=""
     fi

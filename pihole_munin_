@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
 # pihole_munin_
 
@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="3.1.0"
+version="3.1.1"
 
 : <<=cut
 =head1 NAME
@@ -841,7 +841,7 @@ pihole_munin_update() {
     repo_url="https://github.com/saint-lascivious/pihole_munin_"
     raw_url="${repo_url}/raw/master/pihole_munin_"
     cat > "${tmp_script}" << EOF
-#!/bin/sh
+#!/usr/bin/env sh
 
 [ -f "${plugins_available}/pihole_munin_" ] || {
     printf "❌ Error: Update target '%s' not found.\n" "${plugins_available}/pihole_munin_" >&2

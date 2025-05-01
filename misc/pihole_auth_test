@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
 # pihole_auth_test
 
@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="1.1.0"
+version="1.1.1"
 
 api_target="${PROTO:-http}://${HOST:-127.0.0.1}:${PORT:-80}${API:-/api}"
 auth_url="${AUTH:-/auth}"

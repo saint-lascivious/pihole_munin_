@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="3.1.1"
+version="3.2.0"
 
 : <<=cut
 =head1 NAME
@@ -834,46 +834,49 @@ pihole_munin_enable() {
 
 pihole_munin_update() {
     pihole_munin_root "$@"
-    tmp_script="$(mktemp /tmp/pihole_munin_update.XXXXXX)" || {
-        printf "❌ Error: Failed to create temporary update script.\n" >&2
-        return 1
-    }
     repo_url="https://github.com/saint-lascivious/pihole_munin_"
     raw_url="${repo_url}/raw/master/pihole_munin_"
-    cat > "${tmp_script}" << EOF
-#!/usr/bin/env sh
-
-[ -f "${plugins_available}/pihole_munin_" ] || {
-    printf "❌ Error: Update target '%s' not found.\n" "${plugins_available}/pihole_munin_" >&2
-    rm -f "${tmp_script}"
-    return 1
-}
-
-update_pihole_munin_() {
-    printf "🔃 Updating pihole_munin_ plugin...\n"
-    if curl -fsSL "$raw_url" -o "${plugins_available}" -O "pihole_munin_"; then
-        chmod 755 "${plugins_available}/pihole_munin_" || {
-            printf "❌ Error: Failed to set permissions on updated script.\n" >&2
-            rm -f "${tmp_script}"
-            exit 1
-        }
-        printf "✅ Update complete.\n"
-    else
-        printf "❌ Error: Unable to fetch update.\n" >&2
-        return 1
-    fi
-}
-
-update_pihole_munin_
-
-rm -- "$0"
-EOF
-    chmod 755 "${tmp_script}" || {
-        printf "❌ Error: Failed to set permissions on update script.\n" >&2
-        rm -f "${tmp_script}"
+    target="${plugins_available}/pihole_munin_"
+    [ -f "$target" ] || {
+        printf "❌ Error: Update target '%s' not found.\n" "$target" >&2
         return 1
     }
-    exec /bin/sh "${tmp_script}"
+    tmp_file="$(mktemp /tmp/pihole_munin_update.XXXXXX)" || {
+        printf "❌ Error: Failed to create temporary file.\n" >&2
+        return 1
+    }
+    printf "🔃 Updating pihole_munin_ plugin...\n"
+    if curl -fsSL "$raw_url" -o "$tmp_file"; then
+        if [ "$target" = "$0" ]; then
+            printf "\n⚠️ Updating currently running script.\n\n"
+        fi
+        [ -s "$tmp_file" ] || {
+            printf "❌ Error: Downloaded update is empty.\n" >&2
+            rm -f "$tmp_file"
+            return 1
+        }
+        cp -f "$target" "${target}.bak" || {
+            printf "❌ Error: Failed to back up existing script.\n" >&2
+            rm -f "$tmp_file"
+            return 1
+        }
+        printf "🗄️ Backup created: %s\n" "${target}.bak"
+        chmod 755 "$tmp_file" || {
+            printf "❌ Error: Failed to set permissions on update.\n" >&2
+            rm -f "$tmp_file"
+            return 1
+        }
+        mv "$tmp_file" "$target" || {
+            printf "❌ Error: Failed to install updated plugin.\n" >&2
+            rm -f "$tmp_file"
+            return 1
+        }
+        printf "✅ Update complete, please restart the Munin node.\n"
+    else
+        printf "❌ Error: Unable to fetch update.\n" >&2
+        rm -f "$tmp_file"
+        return 1
+    fi
 }
 
 pihole_munin_configure() {

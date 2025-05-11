@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.0.1"
+version="4.0.2"
 
 : <<=cut
 =head1 NAME
@@ -1261,7 +1261,7 @@ pihole_munin_help() {
                         "  -d, -u, disable, uninstall   Disable all plugins and uninstall pihole_munin_." \
                         "  -U, update                   Update pihole_munin_ to the latest version." \
                         "" \
-                        "ℹ️ Run '$0 help admin <subcommand>' for more info."
+                        "ℹ️ Run '$0 help admin <subcommand>' for more information on a subcommand."
                 ;;
                 * )
                     printf "%s\n" \

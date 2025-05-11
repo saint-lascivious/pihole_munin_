@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.0.0"
+version="4.0.1"
 
 : <<=cut
 =head1 NAME
@@ -236,19 +236,19 @@ if [ -z "${pihole_munin_id}" ]; then
     pihole_munin_id="percent"
 fi
 
-if [ -n "$app_password" ]; then
+password_to_use=""
+password_set=0
+
+if [ "${app_password+x}" ]; then
     password_to_use="$app_password"
-elif [ -n "$pihole_password" ]; then
+    password_set=1
+elif [ "${pihole_password+x}" ]; then
     password_to_use="$pihole_password"
+    password_set=1
 elif [ "$host" = "127.0.0.1" ] || [ "$host" = "localhost" ] || [ "$host" = "::" ]; then
     if [ -r "$cli_password" ]; then
-        if [ -s "$cli_password" ]; then
-            password_to_use=$(cat "$cli_password")
-        else
-            password_to_use=""
-        fi
-    else
-        password_to_use=""
+        password_to_use=$(cat "$cli_password")
+        password_set=1
     fi
 fi
 
@@ -287,7 +287,7 @@ pihole_munin_auth_check() {
             :
         ;;
         *)
-            printf "Error: Unepected response while verifying authentication requirement, response code was '%s'.\n" "${check_code}" >&2
+            printf "❌ Error: Unepected response while verifying authentication requirement, response code was '%s'.\n" "${check_code}" >&2
             exit 1
         ;;
     esac
@@ -305,15 +305,15 @@ pihole_munin_auth() {
             return 0
         fi
     fi
-    if [ -z "${password_to_use}" ]; then
-        printf "Error: No App Password, Pi-hole Password or CLI Password was found.\n" >&2
+    if [ "$password_set" -ne 1 ]; then
+        printf "❌ Error: No App Password, Pi-hole Password or CLI Password was found.\n" >&2
         exit 1
     fi
     auth_response=$(curl --connect-timeout 5 -k -s -S -o - -w "%{response_code}" "${api_target}${auth_url}" -d "{\"password\":\"${password_to_use}\"}")
     auth_response_json=$(printf "%s" "${auth_response}" | head -c -3)
     auth_response_code=$(printf "%s" "${auth_response}" | tail -c 3)
     if [ "${auth_response_code}" -ne 200 ]; then
-        printf "Error: Could not get Session ID, response code was '%s'.\n" "${auth_response_code}" >&2
+        printf "❌ Error: Could not get Session ID, response code was '%s'.\n" "${auth_response_code}" >&2
         exit 1
     fi
     sid=$(printf "%s" "${auth_response_json}" | jq -r '.session.sid')
@@ -334,7 +334,7 @@ pihole_munin_logout() {
             :
         ;;
         *)
-            printf "Error: Logout failed, response code was '%s'.\n" "${logout_code}" >&2
+            printf "❌ Error: Logout failed, response code was '%s'.\n" "${logout_code}" >&2
             exit 1
         ;;
     esac

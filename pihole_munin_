@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.0.2"
+version="4.0.3"
 
 : <<=cut
 =head1 NAME
@@ -1035,7 +1035,7 @@ pihole_munin_version() {
     skip_check=0
     for option in "$@"; do
         case "$option" in
-            "-s"|"skip"|"--skip-version-check")
+            "-S"|"skip"|"--skip-version-check")
                 skip_check=1
             ;;
             *)
@@ -1219,7 +1219,7 @@ pihole_munin_help() {
                         "all pihole_munin_ plugins." \
                         "" \
                         "Options:" \
-                        "  -D, --dry-run    Show what would be done without making changes."
+                        "  -D, --dry-run    Show what would be done, but without making any changes."
                 ;;
                 "-d"|"-u"|"disable"|"uninstall"|"--disable"|"--uninstall")
                     printf "%s\n" \
@@ -1232,7 +1232,7 @@ pihole_munin_help() {
                         "" \
                         "Options:" \
                         "  -C, --confirm    Confirm the uninstallation of pihole_munin_." \
-                        "  -D, --dry-run    Show what would be done without making changes."
+                        "  -D, --dry-run    Show what would be done, but without making any changes."
                 ;;
                 "-U"|"update"|"--update")
                     printf "%s\n" \
@@ -1245,7 +1245,7 @@ pihole_munin_help() {
                         "" \
                         "Options:" \
                         "  -C, --confirm    Bypass confirmation when self-updating." \
-                        "  -D, --dry-run    Show what would be done without making changes."
+                        "  -D, --dry-run    Show what would be done, but without making any changes."
                 ;;
                 "" )
                     printf "%s\n" \
@@ -1282,7 +1282,7 @@ pihole_munin_help() {
                 "pihole-munin.sainternet.xyz." \
                 "" \
                 "Options:" \
-                "  -s, --skip-version-check     Skip remote version check."
+                "  -S, --skip-version-check     Skip remote version check."
         ;;
         "-h"|"help"|"--help")
             printf "%s\n" \

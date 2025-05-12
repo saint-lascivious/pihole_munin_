@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.1.0"
+version="4.2.0"
 
 : <<=cut
 =head1 NAME
@@ -884,15 +884,22 @@ pihole_munin_disable() {
 
 pihole_munin_configure() {
     pihole_munin_root "$@"
+    safe_write() {
+        "$@" || { printf "❌ Error: Failed to write to temporary file.\n" >&2; return 1; }
+    }
+    safe_move() {
+        "$@" || { printf "❌ Error: Failed to move temporary file.\n" >&2; return 1; }
+    }
     config_file="/etc/munin/plugin-conf.d/pihole_munin_"
     [ -n "$PIHOLE_MUNIN_CONF" ] && config_file="$PIHOLE_MUNIN_CONF"
-    [ -f "$config_file" ] || printf "[pihole_munin_*]\n" > "$config_file"
+    if [ ! -f "$config_file" ]; then
+        safe_write printf "[pihole_munin_*]\n" > "$config_file"
+    fi
     cmd="$1"
     shift
     case "$cmd" in
         "list")
             [ -f "$config_file" ] || { printf "❌ Error: Configuration file not found.\n" >&2; return 1; }
-            [ -s "$config_file" ] || { printf "❌ Error: Configuration file is empty.\n" >&2; return 1; }
             matches=$(grep -E '^( *env\.| *user\s)' "$config_file")
             [ -z "$matches" ] && { printf "ℹ️ No configuration variables found in %s.\n" "$config_file"; return 0; }
             printf "🔍 Listing variables in %s...\n" "$config_file"
@@ -948,32 +955,28 @@ pihole_munin_configure() {
             shift
             value="$*"
             trimmed_value=$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            [ -z "$trimmed_value" ] && {
-                printf "❌ Error: Value for '%s' is empty or whitespace only.\n" "$var" >&2
-                return 1
+            prompt_secure_value() {
+                printf "\nEnter value: "
+                stty -echo
+                IFS= read -r first_entry
+                stty echo
+                printf "\nConfirm value: "
+                stty -echo
+                IFS= read -r second_entry
+                stty echo
+                printf "\n"
+                if [ "$first_entry" != "$second_entry" ]; then
+                    printf "❌ Error: Entered values do not match.\n" >&2
+                    return 1
+                fi
+                value=$first_entry
+                return 0
             }
-            printf "➕ Adding variable '%s' to %s...\n" "$var" "$config_file"
+            printf "➕ Adding variable to %s...\n" "$config_file"
             case "$var" in
                 "pihole_password"|"app_password")
-                    prompt_secure_value() {
-                        printf "\nEnter value: "
-                        stty -echo
-                        IFS= read -r first_entry
-                        stty echo
-                        printf "\nConfirm value: "
-                        stty -echo
-                        IFS= read -r second_entry
-                        stty echo
-                        printf "\n"
-                        if [ "$first_entry" != "$second_entry" ]; then
-                            printf "❌ Error: Entered values do not match.\n" >&2
-                            return 1
-                        fi
-                        value="$first_entry"
-                        return 0
-                    }
                     if [ -n "$trimmed_value" ]; then
-                        printf "⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "$var" >&2
+                        printf "\n⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "$var" >&2
                         printf "  This may be visible in shell history or process lists.\n" >&2
                     else
                         printf "%s\n\n" \
@@ -982,27 +985,30 @@ pihole_munin_configure() {
                         if ! prompt_secure_value; then
                             return 1
                         fi
+                        trimmed_value="$value"
                     fi
                 ;;
             esac
+            [ -z "$trimmed_value" ] && {
+                printf "❌ Error: Value for '%s' is empty or whitespace only.\n" "$var" >&2
+                return 1
+            }
             case "$var" in
                 "user"|"group")
                     entry="    $var $value"
-                    sed "/^ *$var\s/d" "$config_file" > "$config_file.tmp"
+                    safe_write sed "/^ *$var\s/d" "$config_file" > "$config_file.tmp"
                 ;;
                 *)
                     entry="    env.$var $value"
-                    sed "/^ *env\.$var\s/d" "$config_file" > "$config_file.tmp"
+                    safe_write sed "/^ *env\.$var\s/d" "$config_file" > "$config_file.tmp"
                 ;;
             esac
-            printf "%s\n" "$entry" >> "$config_file.tmp"
-            mv "$config_file.tmp" "$config_file"
+            safe_write printf "%s\n" "$entry" >> "$config_file.tmp"
+            safe_move "$config_file.tmp" "$config_file"
             printf "\n✅ Success.\n"
         ;;
         "remove")
             [ -z "$1" ] && { printf "❌ Error: No variable specified for removal.\n" >&2; return 1; }
-            [ -f "$config_file" ] || { printf "❌ Error: Configuration file not found.\n" >&2; return 1; }
-            [ -s "$config_file" ] || { printf "❌ Error: Configuration file is empty.\n" >&2; return 1; }
             printf "➖ Removing variable from %s...\n" "$config_file"
             var="$1"
             case "$var" in
@@ -1018,9 +1024,9 @@ pihole_munin_configure() {
                 ;;
             esac
             if grep -Eq "$pattern" "$config_file"; then
-                sed "/$pattern/d" "$config_file" > "${config_file}.tmp"
-                mv "${config_file}.tmp" "$config_file"
-                printf "\n✅ Variable '%s' removed from %s\n" "$var" "$config_file"
+                safe_write sed "/$pattern/d" "$config_file" > "${config_file}.tmp"
+                safe_move "${config_file}.tmp" "$config_file"
+                printf "\n✅ Success.\n"
             else
                 printf "⚠️ Variable '%s' not found in %s\n" "$var" "$config_file"
             fi

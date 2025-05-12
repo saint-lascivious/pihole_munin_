@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.0.3"
+version="4.1.0"
 
 : <<=cut
 =head1 NAME
@@ -944,35 +944,49 @@ pihole_munin_configure() {
                 printf "❌ Error: No variable specified for addition.\n" >&2
                 return 1
             }
-            printf "➕ Adding variable to %s...\n" "$config_file"
             var="$1"
             shift
             value="$*"
             trimmed_value=$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            [ -z "$trimmed_value" ] && {
+                printf "❌ Error: Value for '%s' is empty or whitespace only.\n" "$var" >&2
+                return 1
+            }
+            printf "➕ Adding variable '%s' to %s...\n" "$var" "$config_file"
             case "$var" in
-                "password"|*"_password")
+                "pihole_password"|"app_password")
+                    prompt_secure_value() {
+                        printf "\nEnter value: "
+                        stty -echo
+                        IFS= read -r first_entry
+                        stty echo
+                        printf "\nConfirm value: "
+                        stty -echo
+                        IFS= read -r second_entry
+                        stty echo
+                        printf "\n"
+                        if [ "$first_entry" != "$second_entry" ]; then
+                            printf "❌ Error: Entered values do not match.\n" >&2
+                            return 1
+                        fi
+                        value="$first_entry"
+                        return 0
+                    }
                     if [ -n "$trimmed_value" ]; then
                         printf "⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "$var" >&2
                         printf "  This may be visible in shell history or process lists.\n" >&2
                     else
                         printf "%s\n\n" \
-                            "⚠️ Warning: Sensitive variable detected '${var}'." \
+                            "⚠️ Warning: Sensitive variable '$var' detected." \
                             "ℹ️ You will be prompted to enter the value securely.\n" >&2
-                        printf "Enter value: "
-                        stty -echo
-                        IFS= read -r value
-                        stty echo
-                        printf "\n"
-                        trimmed_value=$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+                        if ! prompt_secure_value; then
+                            return 1
+                        fi
                     fi
                 ;;
             esac
-            [ -z "$trimmed_value" ] && {
-                printf "❌ Error: Value for '%s' is empty or whitespace only.\n" "$var" >&2
-                return 1
-            }
             case "$var" in
-                user|group)
+                "user"|"group")
                     entry="    $var $value"
                     sed "/^ *$var\s/d" "$config_file" > "$config_file.tmp"
                 ;;
@@ -983,7 +997,7 @@ pihole_munin_configure() {
             esac
             printf "%s\n" "$entry" >> "$config_file.tmp"
             mv "$config_file.tmp" "$config_file"
-            printf "\n✅ Added variable '%s' to %s\n" "$var" "$config_file"
+            printf "\n✅ Success.\n"
         ;;
         "remove")
             [ -z "$1" ] && { printf "❌ Error: No variable specified for removal.\n" >&2; return 1; }
@@ -1360,6 +1374,9 @@ case $1 in
             "-U"|"update"|"--update")
                 pihole_munin_update "$@"
             ;;
+            "-p"|"password"|"--password")
+                pihole_munin_configure "add" "pihole_password" "${3:-}"
+            ;;
             "")
                 pihole_munin_help "$1"
             ;;
@@ -1395,7 +1412,12 @@ case $1 in
     "suggest")
         pihole_munin_suggest
     ;;
+    "setpassword")
+        pihole_munin_configure "add" "pihole_password" "${2:-}"
+    ;;
     *)
         pihole_munin_help
     ;;
 esac
+
+exit 0

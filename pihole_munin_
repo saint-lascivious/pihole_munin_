@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.2.0"
+version="4.3.0"
 
 : <<=cut
 =head1 NAME
@@ -228,7 +228,7 @@ graph_category="${graph_category:-dns}"
 
 cli_password="${cli_password:-/etc/pihole/cli_pw}"
 app_password="${app_password:-}"
-pihole_password="${password_to_use:-}"
+pihole_password="${pihole_password:-}"
 
 pihole_munin_id="$(printf "%s" "$0" | sed -e 's/^.*pihole_munin_//')"
 
@@ -243,7 +243,14 @@ if [ "${app_password+x}" ]; then
     password_to_use="$app_password"
     password_set=1
 elif [ "${pihole_password+x}" ]; then
-    password_to_use="$pihole_password"
+    case "$pihole_password" in
+        "nopassword"|"none"|"null")
+            password_to_use=""
+        ;;
+        *)
+            password_to_use="$pihole_password"
+        ;;
+    esac
     password_set=1
 elif [ "$host" = "127.0.0.1" ] || [ "$host" = "localhost" ] || [ "$host" = "::" ]; then
     if [ -r "$cli_password" ]; then
@@ -389,7 +396,7 @@ pihole_munin_state() {
 }
 
 pihole_munin_config() {
-    case $pihole_munin_id in
+    case "$pihole_munin_id" in
         "cache")
             cache_crit=""
             cache_warn=""
@@ -489,7 +496,7 @@ pihole_munin_config() {
             pihole_munin_print "status" "Pi-hole blocking status" "blocking status" "${status_crit:-0:1}" "${status_warn:-1:1}"
         ;;
         *)
-            case $pihole_munin_id in
+            case "$pihole_munin_id" in
                 "cache_by_type")
                     cache_by_type_crit=""
                     cache_by_type_warn=""
@@ -503,7 +510,7 @@ pihole_munin_config() {
                     printf "%s" "${cache_by_type_response}" | jq -r '.metrics.dns.cache.content[] | .name' \
                     | while read -r key; do
                         for type in "valid" "stale"; do
-                            case $type in
+                            case "$type" in
                                 "valid")
                                     munin_key="${key}"
                                     cache_by_type_label="${key}"
@@ -533,7 +540,7 @@ pihole_munin_config() {
                     clients_response=$(pihole_munin_state "${stats_summary_url}" ) || exit 1
                     printf "%s" "${clients_response}" | jq -r '.clients | keys[]' \
                     | while read -r key; do
-                        case $key in
+                        case "$key" in
                             "active")
                                 pihole_munin_print "${key}" "Pi-hole clients ${key}" "${key} clients" "${clients_active_crit:-100}" "${clients_active_warn:-1:50}"
                             ;;
@@ -635,7 +642,7 @@ pihole_munin_config() {
 }
 
 pihole_munin_fetch() {
-    case $pihole_munin_id in
+    case "$pihole_munin_id" in
         "cache")
             cache_response=$(pihole_munin_state "${info_metrics_url}" ) || exit 1
             printf "%s" "${cache_response}" | jq -r '
@@ -720,7 +727,7 @@ pihole_munin_fetch() {
             status_response=$(pihole_munin_state "${dns_blocking_url}" ) || exit 1
             printf "%s" "${status_response}" | jq -r '.blocking' \
             | while read -r key; do
-                case $key in
+                case "$key" in
                     "enabled")
                         printf "%s\n" "${pihole_munin_id}.value 1"
                     ;;
@@ -895,9 +902,9 @@ pihole_munin_configure() {
     if [ ! -f "$config_file" ]; then
         safe_write printf "[pihole_munin_*]\n" > "$config_file"
     fi
-    cmd="$1"
+    command="$1"
     shift
-    case "$cmd" in
+    case "$command" in
         "list")
             [ -f "$config_file" ] || { printf "❌ Error: Configuration file not found.\n" >&2; return 1; }
             matches=$(grep -E '^( *env\.| *user\s)' "$config_file")
@@ -974,14 +981,33 @@ pihole_munin_configure() {
             }
             printf "➕ Adding variable to %s...\n" "$config_file"
             case "$var" in
-                "pihole_password"|"app_password")
-                    if [ -n "$trimmed_value" ]; then
-                        printf "\n⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "$var" >&2
-                        printf "  This may be visible in shell history or process lists.\n" >&2
-                    else
-                        printf "%s\n\n" \
+                "pihole_password")
+                    case "$trimmed_value" in
+                        "nopassword"|"none"|"null")
+                            :
+                        ;;
+                        *)
+                            printf "\n⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "$var" >&2
+                            printf "  This may be visible in shell history or process lists.\n" >&2
+                        ;;
+                    esac
+                    if [ -z "$trimmed_value" ]; then
+                        printf "\n%s\n\n%s\n\n" \
                             "⚠️ Warning: Sensitive variable '$var' detected." \
-                            "ℹ️ You will be prompted to enter the value securely.\n" >&2
+                            "ℹ️ You will be prompted to enter the value securely." >&2
+                        if ! prompt_secure_value; then
+                            return 1
+                        fi
+                        trimmed_value="$value"
+                    fi
+                ;;
+                "app_password")
+                    printf "\n⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "$var" >&2
+                    printf "  This may be visible in shell history or process lists.\n" >&2
+                    if [ -z "$trimmed_value" ]; then
+                        printf "\n%s\n\n%s\n\n" \
+                            "⚠️ Warning: Sensitive variable '$var' detected." \
+                            "ℹ️ You will be prompted to enter the value securely." >&2
                         if ! prompt_secure_value; then
                             return 1
                         fi
@@ -1032,7 +1058,7 @@ pihole_munin_configure() {
             fi
         ;;
         *)
-            printf "⚠️ Unknown command: %s\n" "$cmd" >&2
+            printf "⚠️ Unknown command: %s\n" "$command" >&2
         ;;
     esac
 }
@@ -1331,29 +1357,29 @@ pihole_munin_help() {
     esac
 }
 
-for arg in "$@"; do
-    case $arg in
+for argument in "$@"; do
+    case "$argument" in
         "-h"|"help"|"--help")
-            help_flag="$arg"
+            help_flag="$argument"
             break
         ;;
     esac
 done
 
 if [ -n "$help_flag" ] && [ "$1" != "$help_flag" ]; then
-    new_args="$help_flag"
+    new_arguments="$help_flag"
     first=1
-    for arg in "$@"; do
-        if [ "$first" -eq 1 ] && [ "$arg" = "$help_flag" ]; then
+    for argument in "$@"; do
+        if [ "$first" -eq 1 ] && [ "$argument" = "$help_flag" ]; then
             first=0
             continue
         fi
-        new_args="$new_args '$arg'"
+        new_arguments="$new_arguments '$argument'"
     done
-    eval "set -- $new_args"
+    eval "set -- $new_arguments"
 fi
 
-case $1 in
+case "$1" in
     ""|"fetch")
         pihole_munin_fetch
     ;;
@@ -1364,7 +1390,7 @@ case $1 in
         fi
     ;;
     "-a"|"admin"|"--admin")
-        case $2 in
+        case "$2" in
             "-e"|"-i"|"enable"|"install"|"--enable"|"--install")
                 pihole_munin_enable "$@"
             ;;
@@ -1392,7 +1418,7 @@ case $1 in
         esac
     ;;
     "-h"|"help"|"--help")
-        case $2 in
+        case "$2" in
             "")
                 pihole_munin_help
             ;;

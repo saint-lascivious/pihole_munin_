@@ -8,107 +8,135 @@
 ---
 
 ## Overview
-`pihole_munin_` is a Munin plugin designed to monitor and visualize various Pi-hole statistics. It provides detailed insights into Pi-hole's performance, usage, and configuration through Munin's graphing interface.
+
+`pihole_munin_` is a POSIX shell script that acts as a wildcard Munin plugin, providing a suite of metrics for Pi-hole installations. It supports dynamic configuration, authentication, plugin management, and state caching.
 
 ---
 
-## Key Features
+## Features
 
-### **Supported Metrics**
-- **Cache Statistics**
-  - Total cached records
-  - Evicted, expired, immortal, and inserted records
-- **Client Statistics**
-  - Active and total clients
-- **DNS Statistics**
-  - Queries by type (e.g., A, AAAA, PTR)
-  - Queries by status (e.g., blocked, forwarded)
-  - Replies by type
-- **Gravity Database**
-  - Blocked domains, allowed domains, regex rules
-  - Adlists and group counts
-- **Blocking Status**
-  - Enabled/disabled state
-- **Privacy Level**
-  - Current privacy configuration
-- **Query Statistics**
-  - Total, blocked, cached, forwarded queries
-  - Unique domains queried
-  - Query frequency (queries per second)
-- **Percent Blocked**
-  - Percentage of queries blocked
+- **Supported Metrics:**
+  - Cache statistics (total, evicted, expired, immortal, inserted)
+  - Cache by type (valid/stale per record type)
+  - Client statistics (active, total)
+  - DNSMasq/FTLDNS statistics
+  - Domains being blocked
+  - Gravity database stats (groups, adlists, allowed/blocked domains/regex)
+  - Percent blocked
+  - Privacy level
+  - Query statistics (blocked, cached, forwarded, total, unique domains, frequency)
+  - Queries by status/type
+  - Replies/by type
+  - Blocking status
+- **Alert Thresholds** Configurable warning and critical thresholds for metrics.
+- **Authentication:** Supports Pi-hole app password, web password, or CLI password (auto-detected).
+- **State Caching:** Reduces API calls by caching responses.
+- **Session Caching:** Optionally reuses API sessions.
+- **Admin Commands:** Enable/disable plugins, manage config, update and more.
+- **Wildcard Plugin:** Single script, multiple metrics via symlinks.
+- **Munin Capabilities:** Supports autoconf, suggest, dirtyconfig, fetch and config.
+- **POSIX Only:** No bashisms, no shellcheck ignore directives.
 
 ---
 
-### **Plugin Management**
-- **Wildcard Plugin Support**
-  - Single script handles multiple metrics via symbolic links.
-- **Automatic Installation**
-  - Command to install and enable all plugins at once.
-- **Dynamic Configuration**
-  - Easily configure thresholds, API settings, and more via the command line.
+## Installation
 
----
+### Automatic
 
-### **Authentication/API**
-- Supports multiple authentication methods:
-  - Pi-hole application password
-  - Pi-hole web interface password
-  - CLI password (auto-detected if available)
-- State files:
-  - Store the last known state of each metric.
-  - Automatically update state files to avoid unnecessary API calls.
-- Optional session cache:
-  - Force all plugins to use the same session, if that's a thing you want to do, for reasons.
-
----
-
-### **Customization**
-- **Alert Thresholds**
-  - Configure warning and critical thresholds for metrics.
-- **Graph Categories**
-  - Organize graphs under custom categories in Munin.
-- **API Configuration**
-  - Flexible API endpoint and protocol settings.
-
----
-
-### **Admin Commands**
-- **Enable/Disable Plugins**
-  - Enable or disable `pihole_munin_` plugins.
-- **Configuration Management**
-  - Add, remove, or list configuration variables.
-- **Update**
-  - Automatically fetch and install the latest version of the plugin.
-
----
-
-### **Compatibility**
-- **Pi-hole Version**
-  - Compatible with Pi-hole >= 6.0.
-- **Munin Version**
-  - Compatible with Munin >= 2.0.49.
-- **Dependencies**
-  - Requires `curl` and `jq` for API interaction.
-- **Language**
-  - Written entirely in POSIX `shell`, you'll find no [shellcheck](https://github.com/koalaman/shellcheck) [ignore directives](https://github.com/koalaman/shellcheck/wiki/Ignore) here.
-  - I don't care if shell X, Y or Z supports `local` variables, `bash` arrays, or any other non-POSIX feature. This is a POSIX shell script, and it will remain that way.
-
----
-
-## Example Usage
 ```sh
-# Enable all plugins
 ./pihole_munin_ admin enable
-
-# Add a configuration variable
-./pihole_munin_ admin add graph_category dns
 ```
+
+### Manual
+
+```sh
+sudo mv pihole_munin_ /usr/share/munin/plugins/pihole_munin_
+sudo chmod +x /usr/share/munin/plugins/pihole_munin_
+sudo ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache
+# ...repeat for other plugins as needed
+sudo systemctl restart munin-node.service
+```
+
+---
+
+## Configuration
+
+Example `/etc/munin/plugin-conf.d/pihole_munin_` file:
+
+```ini
+[pihole_munin_*]
+    env.cli_password /etc/pihole/cli_pw
+    env.proto http
+    env.host 127.0.0.1
+    env.port 80
+    env.api /api
+    env.graph_category dns
+    env.state_ttl 120
+    env.session_ttl 300
+    user pihole
+```
+
+---
+
+## Usage
+
+### Fetch Data
+
+Munin will call the plugin with the appropriate symlink name, e.g.:
+
+```sh
+/usr/share/munin/plugins/pihole_munin_cache fetch
+```
+
+### Admin Commands
+
+- Enable all plugins:  
+  `./pihole_munin_ admin enable`
+- Disable all plugins:  
+  `./pihole_munin_ admin disable`
+- Add config variable:  
+  `./pihole_munin_ admin add <var> [value]`
+- Remove config variable:  
+  `./pihole_munin_ admin remove <var>`
+- List config variables:  
+  `./pihole_munin_ admin list`
+- Update plugin:  
+  `./pihole_munin_ admin update`
+
+---
+
+## Authentication
+
+Order of precedence:
+1. `env.app_password`
+2. `env.pihole_password`
+3. `env.cli_password` (if host is localhost)
+
+---
+
+## Dependencies
+
+- `curl`
+- `jq`
 
 ---
 
 ## Documentation
 Documentation for `pihole_munin_` can be found in [the pihole_munin_ wiki](https://github.com/saint-lascivious/pihole_munin_/wiki#pihole_munin_).
+
+---
+
+## **Compatibility**
+- **Pi-hole Version** Compatible with Pi-hole >= 6.0.
+- **Munin Version** Compatible with Munin >= 2.0.49.
+
+---
+
+## See Also
+
+- [Munin](https://munin-monitoring.org)
+- [Pi-hole](https://github.com/pi-hole/pi-hole)
+- [Munin Plugins](https://gallery.munin-monitoring.org)
 
 ---
 

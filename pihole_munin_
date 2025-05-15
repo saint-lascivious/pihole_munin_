@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="4.3.0"
+version="4.4.0"
 
 : <<=cut
 =head1 NAME
@@ -215,7 +215,12 @@ saint-lascivious (Hayden Pearce), 2025
 GNU GPLv3
 =cut
 
-api_target="${proto:-http}://${host:-127.0.0.1}:${port:-80}${api:-/api}"
+proto="${proto:-http}"
+host="${host:-127.0.0.1}"
+port="${port:-80}"
+api="${api:-/api}"
+
+api_target="${proto}://${host}:${port}${api}"
 
 auth_url="${auth_url:-/auth}"
 dns_blocking_url="${dns_blocking_url:-/dns/blocking}"
@@ -239,23 +244,35 @@ fi
 password_to_use=""
 password_set=0
 
-if [ "${app_password+x}" ]; then
+if [ -n "${app_password+x}" ]; then
     password_to_use="$app_password"
     password_set=1
-elif [ "${pihole_password+x}" ]; then
+elif [ -n "${pihole_password+set}" ]; then
     case "$pihole_password" in
         "nopassword"|"none"|"null")
             password_to_use=""
+            password_set=1
+        ;;
+        "")
+            printf "❌ Error: 'pihole_password' is set but empty — refusing to use empty password.\n" >&2
+            exit 1
         ;;
         *)
             password_to_use="$pihole_password"
+            password_set=1
         ;;
     esac
+elif { [ "${host}" = "127.0.0.1" ] || [ "${host}" = "localhost" ] || [ "${host}" = "::1" ]; } && [ -r "$cli_password" ] && [ -s "$cli_password" ]; then
+    password_to_use=$(cat "$cli_password")
     password_set=1
-elif [ "$host" = "127.0.0.1" ] || [ "$host" = "localhost" ] || [ "$host" = "::" ]; then
+fi
+
+if [ "${host}" = "127.0.0.1" ] || [ "${host}" = "localhost" ] || [ "${host}" = "::1" ]; then
     if [ -r "$cli_password" ]; then
-        password_to_use=$(cat "$cli_password")
-        password_set=1
+        if [ -s "$cli_password" ]; then
+            password_to_use=$(cat "$cli_password")
+            password_set=1
+        fi
     fi
 fi
 
@@ -316,6 +333,7 @@ pihole_munin_auth() {
         printf "❌ Error: No App Password, Pi-hole Password or CLI Password was found.\n" >&2
         exit 1
     fi
+    echo "🔍 Using password: '${password_to_use}'" >&2
     auth_response=$(curl --connect-timeout 5 -k -s -S -o - -w "%{response_code}" "${api_target}${auth_url}" -d "{\"password\":\"${password_to_use}\"}")
     auth_response_json=$(printf "%s" "${auth_response}" | head -c -3)
     auth_response_code=$(printf "%s" "${auth_response}" | tail -c 3)
@@ -362,12 +380,15 @@ pihole_munin_api_url() {
 }
 
 pihole_munin_state() {
+    is_valid_json() {
+        jq empty >/dev/null 2>&1
+    }
     state_file="${MUNIN_PLUGSTATE:-/tmp}/$(printf "%s" "$1" | sed -E 's/[^a-zA-Z0-9]/_/g').state"
     if [ -f "${state_file}" ]; then
         state_time=$(head -n 1 "${state_file}")
         if [ $((now - state_time)) -lt "${state_ttl:-120}" ]; then
             cached_response=$(tail -n +2 "${state_file}")
-            if printf "%s" "${cached_response}" | jq empty >/dev/null 2>&1; then
+            if printf "%s" "${cached_response}" | is_valid_json; then
                 printf "%s\n" "${cached_response}"
                 return
             else
@@ -382,7 +403,7 @@ pihole_munin_state() {
         did_auth=1
     fi
     response=$(curl --connect-timeout 5 -G -k -s "$(pihole_munin_api_url "$1")") || return 1
-    if ! printf "%s" "${response}" | jq empty >/dev/null 2>&1; then
+    if ! printf "%s" "${response}" | is_valid_json; then
         return 1
     fi
     {
@@ -744,18 +765,22 @@ pihole_munin_fetch() {
 }
 
 pihole_munin_autoconf() {
+    if { [ "$host" = "127.0.0.1" ] || [ "$host" = "localhost" ] || [ "$host" = "::" ]; } && ! command -v pihole >/dev/null 2>&1; then
+        printf "%s\n" "no (not a Pi-hole host)"
+        return
+    fi
+    if [ "${password_set}" -eq 0 ]; then
+        printf "%s\n" "no (no password set)"
+        return
+    fi
     dencies="curl jq"
     for dep in $dencies; do
         if ! command -v "${dep}" >/dev/null 2>&1; then
-            printf "%s\n" "no (missing required command: $dep)"
+            printf "no (missing required command: %s)\n" "${dep}"
             return
         fi
     done
-    if [ -z "${password_to_use}" ]; then
-        printf "%s\n" "no (no password found)"
-        return
-    fi
-    printf "%s\n" "yes"
+    printf "yes\n"
 }
 
 plugins="${PLUGINS:-cache cache_by_type clients dnsmasq domains gravity percent privacy queries queries_by_status queries_by_type replies replies_by_type status}"
@@ -1225,7 +1250,7 @@ pihole_munin_help() {
             case "$2" in
                 "-A"|"add"|"--add")
                     printf "%s\n" \
-                        "❓ Usage: $1 $2 <var> <value>" \
+                        "❓ Usage: $1 $2 <var> [value]" \
                         "" \
                         "Add or update a plugin configuration variable." \
                         "" \

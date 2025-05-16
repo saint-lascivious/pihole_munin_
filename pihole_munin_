@@ -1640,7 +1640,7 @@ case "$1" in
             "-a"|"admin"|"--admin")
                 pihole_munin_help "$2" "${3:-}"
             ;;
-            "-v"|"version"|"--version")
+            "-v"|"version"|"--version"|"setpassword")
                 pihole_munin_help "$2"
             ;;
             *)

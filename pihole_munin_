@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="5.0.1"
+version="5.1.0"
 
 : <<=cut
 =head1 NAME
@@ -378,12 +378,13 @@ if [ -z "${pihole_munin_id}" ]; then
     pihole_munin_id="percent"
 fi
 
-app_password="${app_password:-}"
-pihole_password="${pihole_password:-}"
-cli_password="${cli_password:-/etc/pihole/cli_pw}"
-
 password_to_use=""
 password_set=0
+
+host="${host:-127.0.0.1}"
+is_localhost="0"
+
+cli_password="${cli_password:-/etc/pihole/cli_pw}"
 
 if [ -n "${app_password+x}" ]; then
     password_to_use="$app_password"
@@ -403,15 +404,13 @@ elif [ -n "${pihole_password+set}" ]; then
             password_set=1
         ;;
     esac
-fi
-
-is_localhost="0"
-
-if [ "${host}" = "127.0.0.1" ] || [ "${host}" = "localhost" ] || [ "${host}" = "::1" ] || [ "$host" = "ipv6-localhost" ]; then
+elif [ "${host}" = "127.0.0.1" ] || [ "${host}" = "localhost" ] || [ "${host}" = "::1" ]; then
     is_localhost="1"
-    if [ "$password_set" -eq "0" ] && [ -r "$cli_password" ] && [ -s "$cli_password" ]; then
-        password_to_use=$(cat "$cli_password")
-        password_set=1
+    if [ -r "$cli_password" ]; then
+        if [ -s "$cli_password" ]; then
+            password_to_use=$(cat "$cli_password")
+            password_set=1
+        fi
     fi
 fi
 
@@ -433,7 +432,6 @@ pihole_munin_print() {
 }
 
 proto="${proto:-http}"
-host="${host:-127.0.0.1}"
 port="${port:-80}"
 api="${api:-/api}"
 

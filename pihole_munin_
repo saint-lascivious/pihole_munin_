@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="5.0.0"
+version="5.0.1"
 
 : <<=cut
 =head1 NAME
@@ -138,6 +138,123 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       env.port 80
       env.api /api
 
+      ### GRAPHING ###
+
+      # The following variables are used to set the graphing options.
+
+      #### GRAPH TITLE ####
+
+      # The graph_title_* values determine the title of the graph in
+      # Munin's interface.
+
+      # These values are used to override the default graph titles.
+
+      # The default graph titles are:
+      #   cache: Pi-hole cache
+      #   cache_by_type: Pi-hole cache by type
+      #   clients: Pi-hole clients
+      #   dnsmasq: Pi-hole dnsmasq
+      #   domains: Pi-hole domains being blocked
+      #   gravity: Pi-hole gravity database
+      #   percent: Pi-hole percent blocked
+      #   privacy: Pi-hole privacy level
+      #   queries: Pi-hole queries
+      #   queries_by_status: Pi-hole queries by status
+      #   queries_by_type: Pi-hole queries by type
+      #   replies: Pi-hole replies
+      #   replies_by_type: Pi-hole replies by type
+      #   status: Pi-hole status
+
+      # The default graph titles may be overridden by setting the
+      # graph_title_<plugin> variable to the desired title.
+
+      #### GRAPH ARGS ####
+
+      # The graph_args_* values determine the arguments passed to
+      # Munin's graphing engine.
+
+      # These values are used to override the default graph arguments.
+
+      # The default graph arguments are:
+      #   cache: --lower-limit 0 --units-exponent 0
+      #   cache_by_type: --lower-limit 0 --units-exponent 0
+      #   clients: --lower-limit 0 --units-exponent 0
+      #   dnsmasq: --lower-limit 0 --units-exponent 0
+      #   domains: --lower-limit 0 --units-exponent 0
+      #   gravity: --lower-limit 0 --units-exponent 0
+      #   percent: --upper-limit 100 --lower-limit 0 --rigid --slope-mode --units-exponent 0
+      #   privacy: --upper-limit 3 --lower-limit 0 --rigid --units-exponent 0
+      #   queries: --lower-limit 0 --units-exponent 0
+      #   queries_by_status: --lower-limit 0 --units-exponent 0
+      #   queries_by_type: --lower-limit 0 --units-exponent 0
+      #   replies: --lower-limit 0 --units-exponent 0
+      #   replies_by_type: --lower-limit 0 --units-exponent 0
+      #   status: --lower-limit 0 --upper-limit 1 --rigid --units-exponent 0
+
+      # The default graph arguments may be overridden by setting the
+      # graph_args_<plugin> variable to the desired arguments.
+
+      #### GRAPH INFO ####
+
+      # The graph_info_* values determine the information displayed
+      # in the graph's tooltip in Munin's interface.
+
+      # These values are used to override the default graph information.
+
+      # The default graph information is:
+      #   cache: This graph shows Pi-hole's cache
+      #   cache_by_type: This graph shows Pi-hole's cached records by type
+      #   clients: This graph shows Pi-hole's active and total clients
+      #   dnsmasq: This graph shows various Pi-hole dnsmasq statistics
+      #   domains: This graph shows Pi-hole's domains being blocked
+      #   gravity: This graph shows Pi-hole's gravity database statistics
+      #   percent: This graph shows Pi-hole's percent blocked query percentage
+      #   privacy: This graph shows Pi-hole's privacy level
+      #   queries: This graph shows Pi-hole's queries
+      #   queries_by_status: This graph shows Pi-hole's queries by status
+      #   queries_by_type: This graph shows Pi-hole's queries by record type
+      #   replies: This graph shows Pi-hole's replies
+      #   replies_by_type: This graph shows Pi-hole's replies by record type
+      #   status: This graph shows Pi-hole's blocking status
+
+      # The default graph information may be overridden by setting the
+      # graph_info_<plugin> variable to the desired information.
+
+      #### GRAPH VLABEL ####
+
+      # The graph_vlabel_* values determine the vertical label of the
+      # graph in Munin's interface.
+
+      # These values are used to override the default graph vertical labels.
+
+      # The default graph vertical labels are:
+      #   cache: cached records
+      #   cache_by_type: cached records
+      #   clients: clients
+      #   dnsmasq: count
+      #   domains: domains being blocked
+      #   gravity: count
+      #   percent: percent blocked
+      #   privacy: show all / 1 / 2 / anonymous
+      #   queries: queries
+      #   queries_by_status: queries
+      #   queries_by_type: queries
+      #   replies: replies
+      #   replies_by_type: replies
+      #   status: unknown / disabled / enabled
+
+      # The default graph vertical labels may be overridden by setting
+      # the graph_vlabel_<plugin> variable to the desired label.
+
+      #### GRAPH CATEGORY ####
+
+      # The graph_category value determines the category in which the
+      # pihole_munin_* graphs appear in Munin's interface.
+      env.graph_category dns
+
+      # The graph category may be overridden by setting the
+      # graph_category_<plugin> variable to the desired category.
+
       ### ALERTS ###
 
       # The following variables are used to set the alert thresholds for
@@ -152,7 +269,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # The alert_type is either crit or warn, for critical and warning
       # alerts respectively.
-      
+    
       # The format for values is either a single value which represents
       # the maximum value before an alert is triggered, or a range of
       # values separated by a colon, where an alert will be triggered
@@ -193,36 +310,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # The pihole user has access to the CLI password by default.
       user pihole
 
-      # The graph_category value determines the category in which the
-      # pihole_munin_* graphs appear in Munin's interface.
-      env.graph_category dns
-
-      # The graph_category_* values may override the default graph
-      # category on a per-plugin basis.
-
-      # The graph_title_* values determine the title of the graph in
-      # Munin's interface.
-
-      # These values are used to override the default graph titles.
-
-      # The default graph titles are:
-      #   cache: Pi-hole cache
-      #   cache_by_type: Pi-hole cache by type
-      #   clients: Pi-hole clients
-      #   dnsmasq: Pi-hole dnsmasq
-      #   domains: Pi-hole domains being blocked
-      #   gravity: Pi-hole gravity database
-      #   percent: Pi-hole percent blocked
-      #   privacy: Pi-hole privacy level
-      #   queries: Pi-hole queries
-      #   queries_by_status: Pi-hole queries by status
-      #   queries_by_type: Pi-hole queries by type
-      #   replies: Pi-hole replies
-      #   replies_by_type: Pi-hole replies by type
-      #   status: Pi-hole status
-
-      # The default graph titles may be overridden by setting the
-      # graph_title_<plugin> variable to the desired title.
+      # The group these plugins should run as.
+      # The pihole group has access to the CLI password by default.
+      group pihole
 
       # API responses are cached to reduce the number of requests made to the
       # Pi-hole API. This variable determines the time (in seconds) before

@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="5.1.1"
+version="5.2.0"
 
 : <<=cut
 =head1 NAME
@@ -304,6 +304,22 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       env.status_blocking_status_crit 0:1
       env.status_blocking_status_warn 1:1
 
+      #### COLOURS ####
+
+      # The following variables are used to set the colour of
+      # graphed fields.
+
+      # The format for the keys is:
+      #   env.<plugin>_<key>_colour
+
+      # The plugin is the name of the plugin, e.g. cache, clients, etc.
+
+      # The key is the name of the metric, e.g. evicted, active, etc.
+
+      # The format for the values is three or six hexadecimal digits
+      # with or without a leading hash (#) character.
+      # E.g. #FF0000, 00FF00, 0000FF, #F00, F0F, 0F0, 0F00FF, etc.
+
       ### MISCELLANEOUS ###
 
       # The user these plugins should run as.
@@ -415,11 +431,12 @@ elif [ "${host}" = "127.0.0.1" ] || [ "${host}" = "localhost" ] || [ "${host}" =
 fi
 
 pihole_munin_print() {
-    key_val=$1
-    info_val=$2
-    label_val=$3
-    crit_val=$4
-    warn_val=$5
+    key_val="$1"
+    info_val="$2"
+    label_val="$3"
+    crit_val="$4"
+    warn_val="$5"
+    colour_val="$6"
     printf "%s\n" \
         "${key_val}.info ${info_val}" \
         "${key_val}.label ${label_val}"
@@ -428,6 +445,16 @@ pihole_munin_print() {
     fi
     if [ -n "${warn_val}" ]; then
         printf "%s\n" "${key_val}.warning ${warn_val}"
+    fi
+    colour_val="${colour_val#\#}"
+    if printf %s "$colour_val" | grep -Eq '^[0-9A-Fa-f]{3}$'; then
+        r=$(printf %s "$colour_val" | cut -c1)
+        g=$(printf %s "$colour_val" | cut -c2)
+        b=$(printf %s "$colour_val" | cut -c3)
+        colour_val="${r}${r}${g}${g}${b}${b}"
+    fi
+    if printf %s "$colour_val" | grep -Eq '^[0-9A-Fa-f]{6}$'; then
+        printf "%s\n" "${key_val}.colour ${colour_val}"
     fi
 }
 
@@ -578,7 +605,8 @@ pihole_munin_config() {
             for key in evicted expired immortal inserted; do
                 eval "cache_warn=\${cache_${key}_warn:-}"
                 eval "cache_crit=\${cache_${key}_crit:-}"
-                pihole_munin_print "${key}" "Pi-hole cache ${key}" "${key}" "${cache_crit}" "${cache_warn}"
+                eval "cache_colour=\${cache_${key}_colour:-}"
+                pihole_munin_print "${key}" "Pi-hole cache ${key}" "${key}" "${cache_crit}" "${cache_warn}" "${cache_colour:-}"
             done
         ;;
         "domains")
@@ -588,11 +616,12 @@ pihole_munin_config() {
                 "graph_info ${graph_info_domains:-"This graph shows Pi-hole's domains being blocked"}" \
                 "graph_vlabel ${graph_vlabel_domains:-"domains being blocked"}" \
                 "graph_category ${graph_category_domains:-${graph_category}}"
-            pihole_munin_print "domains_being_blocked" "Pi-hole domains being blocked" "domains being blocked" "${domains_being_blocked_crit:-1:5000000}" "${domains_being_blocked_warn:-0:2500000}"
+            pihole_munin_print "domains_being_blocked" "Pi-hole domains being blocked" "domains being blocked" "${domains_being_blocked_crit:-1:5000000}" "${domains_being_blocked_warn:-0:2500000}" "${domains_being_blocked_colour:-}"
         ;;
         "gravity")
             gravity_crit=""
             gravity_warn=""
+            gravity_colour=""
             printf "%s\n" \
                 "graph_title ${graph_title_gravity:-"Pi-hole gravity database"}" \
                 "graph_args ${graph_args_gravity:-"--lower-limit 0 --units-exponent 0"}" \
@@ -610,7 +639,8 @@ pihole_munin_config() {
                 gravity_label=${gravity_key#*|}
                 eval "gravity_crit=\${gravity_${key}_crit:-}"
                 eval "gravity_warn=\${gravity_${key}_warn:-}"
-                pihole_munin_print "${key}" "Pi-hole gravity ${key}" "${gravity_label}" "${gravity_crit}" "${gravity_warn}"
+                eval "gravity_colour=\${gravity_${key}_colour:-}"
+                pihole_munin_print "${key}" "Pi-hole gravity ${key}" "${gravity_label}" "${gravity_crit}" "${gravity_warn}" "${gravity_colour}"
             done
         ;;
         "percent")
@@ -620,7 +650,7 @@ pihole_munin_config() {
                 "graph_info ${graph_info_percent:-"This graph shows Pi-hole's percent blocked query percentage"}" \
                 "graph_vlabel ${graph_vlabel_percent:-"percent blocked"}" \
                 "graph_category ${graph_category_percent:-${graph_category}}"
-            pihole_munin_print "percent_blocked" "Pi-hole percent blocked" "percent blocked" "${percent_percent_blocked_crit:-90}" "${percent_blocked_warn:-1:80}"
+            pihole_munin_print "percent_blocked" "Pi-hole percent blocked" "percent blocked" "${percent_percent_blocked_crit:-90}" "${percent_blocked_warn:-1:80}" "${percent_percent_blocked_colour:-}"
         ;;
         "privacy")
             printf "%s\n" \
@@ -629,11 +659,12 @@ pihole_munin_config() {
                 "graph_info ${graph_info_privacy:-"This graph shows Pi-hole's privacy level"}" \
                 "graph_vlabel ${graph_vlabel_privacy:-"show all / 1 / 2 / anonymous"}" \
                 "graph_category ${graph_category_privacy:-${graph_category}}"
-            pihole_munin_print "privacy_level" "Pi-hole privacy level" "privacy level" "${privacy_privacy_level_crit:-1:3}" "${privacy_privacy_level_warn:-3:3}"
+            pihole_munin_print "privacy_level" "Pi-hole privacy level" "privacy level" "${privacy_privacy_level_crit:-1:3}" "${privacy_privacy_level_warn:-3:3}" "${privacy_privacy_level_colour:-}"
         ;;
         "queries")
             queries_crit=""
             queries_warn=""
+            queries_colour=""
             printf "%s\n" \
                 "graph_title ${graph_title_queries:-"Pi-hole queries"}" \
                 "graph_args ${graph_args_queries:-"--lower-limit 0 --units-exponent 0"}" \
@@ -651,8 +682,9 @@ pihole_munin_config() {
                 queries_label=${queries_key#*|}
                 eval "queries_crit=\${queries_${key}_crit:-}"
                 eval "queries_warn=\${queries_${key}_warn:-}"
+                eval "queries_colour=\${queries_${key}_colour:-}"
                 [ "$key" = "unique_domains" ] && queries_crit="${queries_crit:-1:20000}" && queries_warn="${queries_warn:-0:10000}"
-                pihole_munin_print "${key}" "Pi-hole ${queries_label}" "${key}" "${queries_crit}" "${queries_warn}"
+                pihole_munin_print "${key}" "Pi-hole ${queries_label}" "${key}" "${queries_crit}" "${queries_warn}" "${queries_colour}"
             done
         ;;
         "status")
@@ -662,13 +694,14 @@ pihole_munin_config() {
                 "graph_info ${graph_info_status:-"This graph shows Pi-hole's blocking status"}" \
                 "graph_vlabel ${graph_vlabel_status:-"unknown / disabled / enabled"}" \
                 "graph_category ${graph_category_status:-${graph_category}}"
-            pihole_munin_print "status" "Pi-hole blocking status" "blocking status" "${status_blocking_status_crit:-0:1}" "${status_blocking_status_warn:-1:1}"
+            pihole_munin_print "status" "Pi-hole blocking status" "blocking status" "${status_blocking_status_crit:-0:1}" "${status_blocking_status_warn:-1:1}" "${status_blocking_status_colour:-}"
         ;;
         *)
             case "$pihole_munin_id" in
                 "cache_by_type")
                     cache_by_type_crit=""
                     cache_by_type_warn=""
+                    cache_by_type_colour=""
                     printf "%s\n" \
                         "graph_title ${graph_title_cache_by_type:-"Pi-hole cache by type"}" \
                         "graph_args ${graph_args_cache_by_type:-"--lower-limit 0 --units-exponent 0"}" \
@@ -695,7 +728,8 @@ pihole_munin_config() {
                             esac
                             eval cache_by_type_warn="\${$warn_var}"
                             eval cache_by_type_crit="\${$crit_var}"
-                            pihole_munin_print "${munin_key}" "Pi-hole cache type ${cache_by_type_label}" "${cache_by_type_label}" "${cache_by_type_crit}" "${cache_by_type_warn}"
+                            eval cache_by_type_colour="\${cache_by_type_${key}_colour:-}"
+                            pihole_munin_print "${munin_key}" "Pi-hole cache type ${cache_by_type_label}" "${cache_by_type_label}" "${cache_by_type_crit}" "${cache_by_type_warn}" "${cache_by_type_colour}"
                         done
                     done
                 ;;
@@ -711,10 +745,10 @@ pihole_munin_config() {
                     | while read -r key; do
                         case "$key" in
                             "active")
-                                pihole_munin_print "${key}" "Pi-hole clients ${key}" "${key} clients" "${clients_active_clients:-100}" "${clients_active_clients_warn:-1:50}"
+                                pihole_munin_print "${key}" "Pi-hole clients ${key}" "${key} clients" "${clients_active_clients:-100}" "${clients_active_clients_warn:-1:50}" "${clients_active_clients_colour:-}"
                             ;;
                             "total")
-                                pihole_munin_print "${key}" "Pi-hole clients ${key}" "${key} clients" "${clients_total_clients_crit:-200}" "${clients_total_clients_warn:-1:100}"
+                                pihole_munin_print "${key}" "Pi-hole clients ${key}" "${key} clients" "${clients_total_clients_crit:-200}" "${clients_total_clients_warn:-1:100}" "${clients_total_clients_colour:-}"
                             ;;
                         esac
                     done
@@ -722,6 +756,7 @@ pihole_munin_config() {
                 "dnsmasq")
                     dnsmasq_crit=""
                     dnsmasq_warn=""
+                    dnsmasq_colour=""
                     printf "%s\n" \
                         "graph_title ${graph_title_dnsmasq:-"Pi-hole dnsmasq"}" \
                         "graph_args ${graph_args_dnsmasq:-"--lower-limit 0 --units-exponent 0"}" \
@@ -734,12 +769,14 @@ pihole_munin_config() {
                         dnsmasq_label=$(printf "%s" "$key" | sed 's/_/ /g')
                         eval "dnsmasq_crit=\${dnsmasq_${key}_crit:-}"
                         eval "dnsmasq_warn=\${dnsmasq_${key}_warn:-}"
-                        pihole_munin_print "${key}" "Pi-hole dnsmasq ${dnsmasq_label}" "${dnsmasq_label}" "${dnsmasq_crit}" "${dnsmasq_warn}"
+                        eval "dnsmasq_colour=\${dnsmasq_${key}_colour:-}"
+                        pihole_munin_print "${key}" "Pi-hole dnsmasq ${dnsmasq_label}" "${dnsmasq_label}" "${dnsmasq_crit}" "${dnsmasq_warn}" "${dnsmasq_colour}"
                     done
                 ;;
                 "queries_by_status")
                     queries_by_status_crit=""
                     queries_by_status_warn=""
+                    queries_by_status_colour=""
                     printf "%s\n" \
                         "graph_title ${graph_title_queries_by_status:-"Pi-hole queries by status"}" \
                         "graph_args ${graph_args_queries_by_status:-"--lower-limit 0 --units-exponent 0"}" \
@@ -751,12 +788,14 @@ pihole_munin_config() {
                     | while read -r key; do
                         eval "queries_by_status_crit=\${queries_by_status_${key}_crit:-}"
                         eval "queries_by_status_warn=\${queries_by_status_${key}_warn:-}"
-                        pihole_munin_print "${key}" "Pi-hole query status ${key}" "${key}" "${queries_by_status_crit}" "${queries_by_status_warn}"
+                        eval "queries_by_status_colour=\${queries_by_status_${key}_colour:-}"
+                        pihole_munin_print "${key}" "Pi-hole query status ${key}" "${key}" "${queries_by_status_crit}" "${queries_by_status_warn}" "${queries_by_status_colour}"
                     done
                 ;;
                 "queries_by_type")
                     queries_by_type_crit=""
                     queries_by_type_warn=""
+                    queries_by_type_colour=""
                     printf "%s\n" \
                         "graph_title ${graph_title_queries_by_type:-"Pi-hole queries by type"}" \
                         "graph_args ${graph_args_queries_by_type:-"--lower-limit 0 --units-exponent 0"}" \
@@ -768,12 +807,14 @@ pihole_munin_config() {
                     | while read -r key; do
                         eval "queries_by_type_crit=\${queries_by_type_${key}_crit:-}"
                         eval "queries_by_type_warn=\${queries_by_type_${key}_warn:-}"
-                        pihole_munin_print "${key}" "Pi-hole query type ${key}" "${key}" "${queries_by_type_crit}" "${queries_by_type_warn}"
+                        eval "queries_by_type_colour=\${queries_by_type_${key}_colour:-}"
+                        pihole_munin_print "${key}" "Pi-hole query type ${key}" "${key}" "${queries_by_type_crit}" "${queries_by_type_warn}" "${queries_by_type_colour}"
                     done
                 ;;
                 "replies")
                     replies_crit=""
                     replies_warn=""
+                    replies_colour=""
                     printf "%s\n" \
                         "graph_title ${graph_title_replies:-"Pi-hole replies"}" \
                         "graph_args ${graph_args_replies:-"--lower-limit 0 --units-exponent 0"}" \
@@ -785,12 +826,14 @@ pihole_munin_config() {
                     | while read -r key; do
                         eval "replies_crit=\${replies_${key}_crit:-}"
                         eval "replies_warn=\${replies_${key}_warn:-}"
-                        pihole_munin_print "${key}" "Pi-hole replies ${key}" "${key}" "${replies_crit}" "${replies_warn}"
+                        eval "replies_colour=\${replies_${key}_colour:-}"
+                        pihole_munin_print "${key}" "Pi-hole replies ${key}" "${key}" "${replies_crit}" "${replies_warn}" "${replies_colour}"
                     done
                 ;;
                 "replies_by_type")
                     replies_by_type_crit=""
                     replies_by_type_warn=""
+                    replies_by_type_colour=""
                     printf "%s\n" \
                         "graph_title ${graph_title_replies_by_type:-"Pi-hole replies by type"}" \
                         "graph_args ${graph_args_replies_by_type:-"--lower-limit 0 --units-exponent 0"}" \
@@ -802,7 +845,8 @@ pihole_munin_config() {
                     | while read -r key; do
                         eval "replies_by_type_crit=\${replies_by_type_${key}_crit:-}"
                         eval "replies_by_type_warn=\${replies_by_type_${key}_warn:-}"
-                        pihole_munin_print "${key}" "Pi-hole reply type ${key}" "${key}" "${replies_by_type_crit}" "${replies_by_type_warn}"
+                        eval "replies_by_type_colour=\${replies_by_type_${key}_colour:-}"
+                        pihole_munin_print "${key}" "Pi-hole reply type ${key}" "${key}" "${replies_by_type_crit}" "${replies_by_type_warn}" "${replies_by_type_colour}"
                     done
                 ;;
             esac

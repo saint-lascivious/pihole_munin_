@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-version="5.4.0"
+version="5.5.0"
 
 : <<=cut
 =head1 NAME
@@ -534,26 +534,27 @@ pihole_munin_print() {
     type_val="$7"
     draw_val="$8"
     graph_val="$9"
-    if [ -z "$key_val" ]; then
-        printf "❌ Error: No key provided.\n" >&2
+    if ! printf %s "$key_val" | grep -Eq '^[a-zA-Z_][a-zA-Z0-9_]*$'; then
+        printf "❌ Error: Invalid or missing key.\n" >&2
         return 1
     fi
-    if [ -n "$label_val" ]; then
-        printf "%s.label %s\n" "${key_val}" "${label_val}"
-    else
-        printf "❌ Error: No label provided for field '%s'.\n" "${key_val}" >&2
+    if [ -z "$label_val" ] || printf %s "$label_val" | grep -q '[#\\]'; then
+        printf "❌ Error: Invalid or missing label for field '%s'.\n" "$key_val" >&2
         return 1
     fi
-    if [ -n "$info_val" ]; then
-        printf "%s.info %s\n" "${key_val}" "${info_val}"
+    printf "%s.label %s\n" "$key_val" "$label_val"
+    [ -n "$info_val" ] && printf "%s.info %s\n" "$key_val" "$info_val"
+    if [ -n "$crit_val" ]; then
+        if printf %s "$crit_val" | grep -Eq '^(-?[0-9]+(\.[0-9]*)?)?(:(-?[0-9]+(\.[0-9]*)?)?)?$|^(-?[0-9]+(\.[0-9]*)?):$'; then
+            printf "%s.critical %s\n" "$key_val" "$crit_val"
+        fi
     fi
-    if [ -n "${warn_val}" ]; then
-        printf "%s.warning %s\n" "${key_val}" "${warn_val}"
+    if [ -n "$warn_val" ]; then
+        if printf %s "$warn_val" | grep -Eq '^(-?[0-9]+(\.[0-9]*)?)?(:(-?[0-9]+(\.[0-9]*)?)?)?$|^(-?[0-9]+(\.[0-9]*)?):$'; then
+            printf "%s.warning %s\n" "$key_val" "$warn_val"
+        fi
     fi
-    if [ -n "${crit_val}" ]; then
-        printf "%s.critical %s\n" "${key_val}" "${crit_val}"
-    fi
-    if [ -n "${colour_val}" ]; then
+    if [ -n "$colour_val" ]; then
         colour_val="${colour_val#\#}"
         if printf %s "$colour_val" | grep -Eq '^[0-9A-Fa-f]{3}$'; then
             r=$(printf %s "$colour_val" | cut -c1)
@@ -562,25 +563,22 @@ pihole_munin_print() {
             colour_val="${r}${r}${g}${g}${b}${b}"
         fi
         if printf %s "$colour_val" | grep -Eq '^[0-9A-Fa-f]{6}$'; then
-            printf "%s.colour %s\n" "${key_val}" "${colour_val}"
+            printf "%s.colour %s\n" "$key_val" "$colour_val"
         fi
     fi
-    if [ -n "${type_val}" ]; then
-        printf "%s.type %s\n" "${key_val}" "${type_val}"
+    case "$type_val" in
+        "GAUGE"|"COUNTER"|"DERIVE"|"ABSOLUTE")
+            printf "%s.type %s\n" "$key_val" "$type_val"
+        ;;
+    esac
+    if printf %s "$draw_val" | grep -Eq '^LINE[0-9]*$|^AREA$|^STACK$|^AREASTACK$|^LINESTACK[0-9]*$'; then
+        printf "%s.draw %s\n" "$key_val" "$draw_val"
     fi
-    if [ -n "${draw_val}" ]; then
-        printf "%s.draw %s\n" "${key_val}" "${draw_val}"
-    fi
-    if [ -n "${graph_val}" ]; then
-        case "$graph_val" in
-            "yes"|"no")
-                printf "%s.graph %s\n" "${key_val}" "${graph_val}"
-            ;;
-            *)
-                :
-            ;;
-        esac
-    fi
+    case "$graph_val" in
+        "yes"|"no")
+            printf "%s.graph %s\n" "$key_val" "$graph_val"
+        ;;
+    esac
 }
 
 proto="${proto:-http}"
@@ -1771,6 +1769,15 @@ pihole_munin_help() {
                         "" \
                         "ℹ️ This command will download the latest version from" \
                         "the GitHub repository and replace the current script." \
+                        "" \
+                        "⚠️ This is not intended to be run blind, but that's still" \
+                        "something you're free to do. Updating blind may result in" \
+                        "pulling in a newer version that exists in the repo, but" \
+                        "is not necessarily intended for public consumption." \
+                        "" \
+                        "At some point I will probably split the update checking out" \
+                        " of the version function and into its own function, but that" \
+                        " day is not today." \
                         "" \
                         "Options:" \
                         "  -C, --confirm    Bypass confirmation when self-updating." \

@@ -44,7 +44,7 @@
 ### Automatic
 
 ```sh
-./pihole_munin_ admin enable
+./pihole_munin_ admin install
 ```
 
 ### Manual
@@ -71,7 +71,7 @@ Example `/etc/munin/plugin-conf.d/pihole_munin_` file:
     env.port 80
     env.api /api
     env.graph_category dns
-    env.state_ttl 120
+    env.state_ttl 240
     env.session_ttl 300
     user pihole
 ```
@@ -91,9 +91,9 @@ Munin will call the plugin with the appropriate symlink name, e.g.:
 ### Admin Commands
 
 - Enable all plugins:  
-  `./pihole_munin_ admin enable`
+  `./pihole_munin_ admin install`
 - Disable all plugins:  
-  `./pihole_munin_ admin disable`
+  `./pihole_munin_ admin uninstall`
 - Add config variable:  
   `./pihole_munin_ admin add <var> [value]`
 - Remove config variable:  
@@ -102,6 +102,8 @@ Munin will call the plugin with the appropriate symlink name, e.g.:
   `./pihole_munin_ admin list`
 - Update plugin:  
   `./pihole_munin_ admin update`
+- Set password:  
+  `./pihole_munin_ admin password <password>`
 
 ---
 
@@ -118,6 +120,7 @@ Order of precedence:
 
 - `curl`
 - `jq`
+- `mktemp`
 
 ---
 

@@ -21,7 +21,7 @@
 
 set -e
 
-version="6.0.0"
+version="6.0.1"
 
 : <<=cut
 =head1 NAME
@@ -2126,8 +2126,14 @@ pihole_munin_install() {
             ;;
         esac
     done
+    printf "%s Checking for required directories:\n  %s\n  %s\n" \
+        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🟢" )" \
+        "${plugins_available}" \
+        "${plugins_enabled}"
     [ -d "${plugins_available}" ] || { printf "❌ Error: Missing directory: %s\n" "${plugins_available}" >&2; return 1; }
     [ -d "${plugins_enabled}" ] || { printf "❌ Error: Missing directory: %s\n" "${plugins_enabled}" >&2; return 1; }
+    printf "%s Success.\n" \
+        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
     if [ "${dry_run}" -eq "1" ]; then
         printf "%s Installing pihole_munin_ to:\n  %s/pihole_munin_\n" "🛟 [DRY RUN]" "${plugins_available}"
     else
@@ -2138,6 +2144,17 @@ pihole_munin_install() {
         }
         chmod 755 "${plugins_available}/pihole_munin_" || {
             printf "❌ Error: Failed to set permissions.\n" >&2
+            return 1
+        }
+    fi
+    printf "\n%s Success.\n" \
+        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
+    printf "\n%s Cleaning up old plugins in %s:\n" \
+        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🟢" )" \
+        "${plugins_enabled}"
+    if [ "$dry_run" -eq "0" ]; then
+        rm -f "${plugins_available}/pihole_munin_*" || {
+            printf "❌ Error: Failed to remove old plugins.\n" >&2
             return 1
         }
     fi
@@ -2308,7 +2325,7 @@ pihole_munin_configure() {
             [ -f "${config_file}" ] || { printf "❌ Error: Configuration file not found.\n" >&2; return 1; }
             matches=$(grep -E '^( *env\.| *user\s)' "${config_file}")
             [ -z "${matches}" ] && { printf "ℹ️ No configuration variables found in %s.\n" "${config_file}"; return 0; }
-            printf "🔍 Listing variables in %s...\n" "${config_file}"
+            printf "🔍 Listing variables in:\n  %s\n" "${config_file}"
             printf "%s\n" "${matches}" | while IFS= read -r config_line; do
                 case "${config_line}" in
                     *"env."*"_password "*|*"env.password "*)
@@ -2366,7 +2383,7 @@ pihole_munin_configure() {
             shift
             add_val="$*"
             trimmed_value=$(printf '%s' "${add_val}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            printf "➕ Adding variable to %s...\n" "${config_file}"
+            printf "➕ Adding variable to:\n  %s\n" "${config_file}"
             case "${add_var}" in
                 "pihole_password")
                     case "${trimmed_value}" in
@@ -2422,7 +2439,7 @@ pihole_munin_configure() {
         ;;
         "remove")
             [ -z "${1}" ] && { printf "❌ Error: No variable specified for removal.\n" >&2; return 1; }
-            printf "➖ Removing variable from %s...\n" "${config_file}"
+            printf "➖ Removing variable from:\n  %s\n" "${config_file}"
             remove_var="${1}"
             case "${remove_var}" in
                 "user")

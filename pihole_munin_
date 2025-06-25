@@ -21,7 +21,7 @@
 
 set -e
 
-version="6.1.0"
+version="6.1.1"
 
 : <<=cut
 =head1 NAME
@@ -1762,7 +1762,7 @@ pihole_munin_check_dependencies() {
     plugin_dependencies="curl jq mktemp"
     for plugin_dependency in ${plugin_dependencies}; do
         if ! command -v "${plugin_dependency}" >/dev/null 2>&1; then
-            printf "❌ Error: %s is not installed or not in PATH\n" "${plugin_dependency}" >&2
+            printf "❌ Error: '%s' is not installed or not in PATH\n" "${plugin_dependency}" >&2
             return 1
         fi
     done
@@ -2110,16 +2110,33 @@ plugins_enabled="${PLUGINS_ENABLED:-/etc/munin/plugins}"
 pihole_munin_path="${plugins_available}/pihole_munin_"
 
 pihole_munin_header() {
-    [ "${1}" = "clear" ] && clear
+    RED='\033[38;5;196m'
+    ORANGE='\033[38;5;208m'
+    YELLOW='\033[38;5;226m'
+    GREEN='\033[38;5;46m'
+    LIGHTBLUE='\033[38;5;39m'
+    BLUE='\033[38;5;21m'
+    #INDIGO='\033[38;5;54m'
+    VIOLET='\033[38;5;93m'
+    MAGENTA='\033[38;5;201m'
+    #PINK='\033[38;5;213m'
+    #WHITE='\033[38;5;15m'
+    RESET_COLOUR='\033[0m'
     timestamp=$(date --rfc-3339=seconds)
-    printf "%s\n\n" \
-        "pihole_munin_ version: ${version} " \
-        "⌚ ${timestamp}"
+    printf "%b\n%b\n%b\n%b\n%b\n%b\n\n%b\n\n%b\n\n" \
+        "${RED}          _  _             _                                     _${RESET_COLOUR}" \
+        "${ORANGE}   _ __  (_)| |__    ___  | |  ___      _ __ ___   _   _  _ __  (_) _ __${RESET_COLOUR}" \
+        "${YELLOW}  | '_ \\ | || '_ \\  / _ \\ | | / _ \\    | '_ \` _ \\ | | | || '_ \\ | || '_ \\\\${RESET_COLOUR}" \
+        "${GREEN}  | |_) || || | | || (_) || ||  __/ __ | | | | | || |_| || | | || || | | | __${RESET_COLOUR}" \
+        "${LIGHTBLUE}  | .__/ |_||_| |_| \\___/ |_| \\___||__||_| |_| |_| \\__,_||_| |_||_||_| |_||__|${RESET_COLOUR}" \
+        "${BLUE}  |_|${RESET_COLOUR}" \
+        "${VIOLET}📦 ${version}${RESET_COLOUR}" \
+        "${MAGENTA}⏱️ ${timestamp}${RESET_COLOUR}"
 }
 
 pihole_munin_install() {
     pihole_munin_root "$@"
-    pihole_munin_header "clear"
+    pihole_munin_header
     dry_run="0"
     plugins_to_clean="0"
     for option in "$@"; do
@@ -2129,9 +2146,8 @@ pihole_munin_install() {
             ;;
         esac
     done
-    printf "%s Installing pihole_munin_ to:  %s\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "🟢" || printf "🟢 [DRY RUN]")" \
-        "${pihole_munin_path}"
+    printf "%s Installing pihole_munin_...\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "🟢" || printf "🟢 [DRY RUN]")"
     [ -d "${plugins_available}" ] || { printf "❌ Error: Missing directory '%s'\n" "${plugins_available}" >&2; exit 1; }
     [ -d "${plugins_enabled}" ] || { printf "❌ Error: Missing directory '%s'\n" "${plugins_enabled}" >&2; exit 1; }
     if [ "${dry_run}" -eq "0" ]; then
@@ -2145,7 +2161,7 @@ pihole_munin_install() {
         }
     fi
     printf "  %s\n\n%s Success.\n" \
-        "${plugins_available}/pihole_munin_" \
+        "${pihole_munin_path}" \
         "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
     for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
         [ ! -e "${plugin_to_clean}" ] && continue
@@ -2175,7 +2191,7 @@ pihole_munin_install() {
     for plugin in ${plugins}; do
         if [ "${dry_run}" -eq "0" ]; then
             ln -sf "${plugins_available}/pihole_munin_" "${plugins_enabled}/pihole_munin_${plugin}" || {
-                printf "❌ Error: Failed to create symlink: %s\n" "${plugins_enabled}/pihole_munin_${plugin}" >&2
+                printf "❌ Error: Failed to create symlink '%s'\n" "${plugins_enabled}/pihole_munin_${plugin}" >&2
                 exit 1
             }
         fi
@@ -2194,7 +2210,7 @@ pihole_munin_install() {
 
 pihole_munin_uninstall() {
     pihole_munin_root "$@"
-    pihole_munin_header "clear"
+    pihole_munin_header
     dry_run="0"
     for option in "$@"; do
         case "${option}" in
@@ -2206,14 +2222,14 @@ pihole_munin_uninstall() {
     printf "%s Disabling pihole_munin_ plugins...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "🔴" || printf "🔴 [DRY RUN]" )"
     [ -d "${plugins_enabled}" ] || {
-        printf "❌ Error: Missing directory: %s\n" "${plugins_enabled}" >&2
+        printf "❌ Error: Missing directory '%s'\n" "${plugins_enabled}" >&2
         exit 1
     }
     for plugin in ${plugins}; do
         if [ -L "${plugins_enabled}/pihole_munin_${plugin}" ]; then
             if [ "${dry_run}" -eq "0" ]; then
                 rm -f "${plugins_enabled}/pihole_munin_${plugin}" || {
-                    printf "❌ Error: Failed to remove symlink: %s\n" "${plugins_enabled}/pihole_munin_${plugin}" >&2
+                    printf "❌ Error: Failed to remove symlink '%s'\n" "${plugins_enabled}/pihole_munin_${plugin}" >&2
                     exit 1
                 }
             fi
@@ -2223,19 +2239,24 @@ pihole_munin_uninstall() {
     printf "\n%s Success.\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
     [ -d "${plugins_available}" ] || {
-        printf "❌ Error: Missing directory: %s\n" "${plugins_available}" >&2
+        printf "❌ Error: Missing directory '%s'\n" "${plugins_available}" >&2
+        exit 1
+    }
+    [ -f "${pihole_munin_path}" ] || {
+        printf "❌ Error: Plugin file '%s' does not exist.\n" "${pihole_munin_path}" >&2
         exit 1
     }
     if [ "${dry_run}" -eq "0" ]; then
-        printf "\n%s Uninstalling pihole_munin_ from:\n  %s\n" "🔴" "${pihole_munin_path}"
+        printf "\n🔴 Uninstalling pihole_munin_...\n"
         rm -f "${pihole_munin_path}" || {
             printf "❌ Error: Failed to remove '%s'\n" "${pihole_munin_path}" >&2
             exit 1
         }
     else
-        printf "\n%s Uninstalling pihole_munin_ from:\n  %s\n" "🔴 [DRY RUN]" "${pihole_munin_path}"
+        printf "\n🔴 [DRY RUN] Uninstalling pihole_munin_...\n"
     fi
-    printf "\n%s Success.\n" \
+    printf "  %s\n\n%s Success.\n" \
+        "${pihole_munin_path}" \
         "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
 }
 
@@ -2636,26 +2657,26 @@ pihole_munin_test() {
             ;;
         esac
     done
-    printf "\n%s Testing pihole_munin_ plugins:\n" \
+    printf "\n%s Testing pihole_munin_ plugins...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "🧩" || printf "🧩 [DRY RUN]")"
     if [ "${dry_run}" -eq "0" ]; then
         for plugin in ${plugins}; do
             if [ "${verbose}" -eq "1" ]; then
                 if ! munin-run pihole_munin_"${plugin}" config; then
-                    printf "❌ Error: config failed for plugin %s\n" "${plugin}"
+                    printf "❌ Error: config failed for plugin '%s'\n" "${plugin}"
                     exit 1
                 fi
                 if ! munin-run pihole_munin_"${plugin}" fetch; then
-                    printf "\n❌ Error: fetch failed for plugin %s\n" "${plugin}"
+                    printf "\n❌ Error: fetch failed for plugin '%s'\n" "${plugin}"
                     exit 1
                 fi
             else
                 if ! munin-run pihole_munin_"${plugin}" config >/dev/null 2>&1; then
-                    printf "❌ Error: config failed for plugin %s\n" "${plugin}"
+                    printf "❌ Error: config failed for plugin '%s'\n" "${plugin}"
                     exit 1
                 fi
                 if ! munin-run pihole_munin_"${plugin}" fetch >/dev/null 2>&1; then
-                    printf "\n❌ Error: fetch failed for plugin %s\n" "${plugin}"
+                    printf "\n❌ Error: fetch failed for plugin '%s'\n" "${plugin}"
                     exit 1
                 fi
             fi
@@ -2664,7 +2685,7 @@ pihole_munin_test() {
     else
         for plugin in ${plugins}; do
             [ -L "${plugins_available}/pihole_munin_${plugin}" ] || {
-                printf "❌ Error: Plugin %s not found in %s.\n" "${plugin}" "${plugins_available}" >&2
+                printf "❌ Error: Plugin '%s' not found in '%s'.\n" "${plugin}" "${plugins_available}" >&2
                 exit 1
             }
             printf "  %s\n" "${plugin}"

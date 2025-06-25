@@ -1,5 +1,14 @@
 #!/usr/bin/env sh
 
+#         _  _             _                                     _
+#  _ __  (_)| |__    ___  | |  ___      _ __ ___   _   _  _ __  (_) _ __
+# | '_ \ | || '_ \  / _ \ | | / _ \    | '_ ` _ \ | | | || '_ \ | || '_ \
+# | |_) || || | | || (_) || ||  __/ __ | | | | | || |_| || | | || || | | | __
+# | .__/ |_||_| |_| \___/ |_| \___||__||_| |_| |_| \__,_||_| |_||_||_| |_||__|
+# |_|
+
+# saint-lascivious (Hayden Pearce), 2025
+
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -10,18 +19,9 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-#         _  _             _                                     _
-#  _ __  (_)| |__    ___  | |  ___      _ __ ___   _   _  _ __  (_) _ __
-# | '_ \ | || '_ \  / _ \ | | / _ \    | '_ ` _ \ | | | || '_ \ | || '_ \
-# | |_) || || | | || (_) || ||  __/ __ | | | | | || |_| || | | || || | | | __
-# | .__/ |_||_| |_| \___/ |_| \___||__||_| |_| |_| \__,_||_| |_||_||_| |_||__|
-# |_|
-
-# saint-lascivious (Hayden Pearce), 2025
-
 set -e
 
-version="6.0.1"
+version="6.1.0"
 
 : <<=cut
 =head1 NAME
@@ -255,27 +255,27 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # The graph_args value determines the arguments passed to Munin's
       # graphing engine.
-      env.graph_args --base 1000 --lower-limit 0
+      env.graph_args --lower-limit 0
 
       # The default graph arguments are:
-      #   cache: --base 1000 --lower-limit 0
-      #   cache_by_type: --base 1000 --lower-limit 0
-      #   clients: --base 1000 --lower-limit 0
-      #   dnsmasq: --base 1000 --lower-limit 0
-      #   domains: --base 1000 --lower-limit 0
-      #   frequency: --base 1000 --lower-limit 0 --slope-mode
-      #   gravity: --base 1000 --lower-limit 0
-      #   overview: --base 1000 --lower-limit 0
-      #   percent: --base 1000 --upper-limit 100 --lower-limit 0 --rigid \
-      #     --slope-mode
-      #   privacy: --base 1000 --upper-limit 3 --lower-limit 0 --rigid
-      #   queries: --base 1000 --lower-limit 0
-      #   queries_by_status: --base 1000 --lower-limit 0
-      #   queries_by_type: --base 1000 --lower-limit 0
-      #   replies: --base 1000 --lower-limit 0
-      #   replies_by_type: --base 1000 --lower-limit 0
-      #   status: --base 1000 --lower-limit -1 --upper-limit 1 --rigid
-      #   unique: --base 1000 --lower-limit 0 --slope-mode
+      #   cache: --lower-limit 0
+      #   cache_by_type: --lower-limit 0
+      #   clients: --lower-limit 0
+      #   dnsmasq: --lower-limit 0
+      #   domains: --lower-limit 0
+      #   frequency: --lower-limit 0
+      #   gravity: --lower-limit 0
+      #   overview: --lower-limit 0
+      #   percent: --upper-limit 100 --lower-limit 0
+      #    
+      #   privacy: --upper-limit 3 --lower-limit 0
+      #   queries: --lower-limit 0
+      #   queries_by_status: --lower-limit 0
+      #   queries_by_type: --lower-limit 0
+      #   replies: --lower-limit 0
+      #   replies_by_type: --lower-limit 0
+      #   status: --lower-limit -1 --upper-limit 1
+      #   unique: --lower-limit 0
 
       # The default graph arguments may be overridden by setting the
       # graph_args_<plugin> variable to the desired arguments.
@@ -689,10 +689,11 @@ elif [ -n "${pihole_password+set}" ]; then
             password_set="1"
         ;;
         "")
-            printf "%s\n\n%s\n%s\n" \
+            printf "%s\n\n%s\n%s\n%s\n" \
                 "❌ Error: 'pihole_password' is set but empty." \
-                "ℹ️ Please set the 'pihole_password' variable to a valid password, or set it to" \
-                "'nopassword', 'none' or 'null' if your Pi-hole password is intentionally blank." >&2
+                "ℹ️ Info: Please set the 'pihole_password' variable to a valid password, or set" \
+                "it to 'nopassword', 'none' or 'null' if your Pi-hole password is intentionally" \
+                "blank." >&2
             exit 1
         ;;
         *)
@@ -702,7 +703,7 @@ elif [ -n "${pihole_password+set}" ]; then
     esac
 else
     host_normalised=$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')
-    case "$host_normalised" in
+    case "${host_normalised}" in
         "127.0.0.1"|"localhost"|"localhost.localdomain"|"::1"|"ip6-localhost"|"ip6-loopback")
             is_localhost="1"
         ;;
@@ -946,7 +947,7 @@ pihole_munin_state_handler() {
 }
 
 graph="${graph:-"yes"}"
-graph_args="${graph_args:-"--base 1000 --lower-limit 0"}"
+graph_args="${graph_args:-"--lower-limit 0"}"
 graph_category="${graph_category:-"dns"}"
 graph_draw="${graph_draw:-"LINE1"}"
 graph_height="${graph_height:-"200"}"
@@ -961,7 +962,7 @@ pihole_munin_graph_zero() {
     if [ -n "${_graph_zero_result}" ]; then
         [ "${_graph_zero_result}" = "yes" ] && return 0 || return 1
     fi
-    [ "${graph_zero:-yes}" = "yes" ]
+    [ "${graph_zero:-"yes"}" = "yes" ]
 }
 
 pihole_munin_config_cache() {
@@ -1224,7 +1225,7 @@ pihole_munin_config_domains() {
 pihole_munin_config_frequency() {
     printf "%s\n" \
         "graph ${graph_frequency:-${graph}}" \
-        "graph_args ${graph_args_frequency:-"--base 1000 --lower-limit 0 --slope-mode"}" \
+        "graph_args ${graph_args_frequency:-${graph_args}}" \
         "graph_category ${graph_category_frequency:-${graph_category}}" \
         "graph_height ${graph_height_frequency:-${graph_height}}" \
         "graph_info ${graph_info_frequency:-"This graph shows Pi-hole's query frequency"}" \
@@ -1389,7 +1390,7 @@ pihole_munin_config_overview() {
 pihole_munin_config_percent() {
     printf "%s\n" \
         "graph ${graph_percent:-${graph}}" \
-        "graph_args ${graph_args_percent:-"--base 1000 --upper-limit 100 --lower-limit 0 --rigid --slope-mode"}" \
+        "graph_args ${graph_args_percent:-"--upper-limit 100 --lower-limit 0"}" \
         "graph_category ${graph_category_percent:-${graph_category}}" \
         "graph_height ${graph_height_percent:-${graph_height}}" \
         "graph_info ${graph_info_percent:-"This graph shows Pi-hole's percent blocked query percentage"}" \
@@ -1414,7 +1415,7 @@ pihole_munin_config_percent() {
 pihole_munin_config_privacy() {
     printf "%s\n" \
         "graph ${graph_privacy:-${graph}}" \
-        "graph_args ${graph_args_privacy:-"--base 1000 --upper-limit 3 --lower-limit 0 --rigid"}" \
+        "graph_args ${graph_args_privacy:-"--upper-limit 3 --lower-limit 0"}" \
         "graph_category ${graph_category_privacy:-${graph_category}}" \
         "graph_height ${graph_height_privacy:-${graph_height}}" \
         "graph_info ${graph_info_privacy:-"This graph shows Pi-hole's privacy level, visit https://docs.pi-hole.net/ftldns/privacylevels/ for more information"}" \
@@ -1710,7 +1711,7 @@ pihole_munin_config_replies_by_type() {
 pihole_munin_config_status() {
     printf "%s\n" \
         "graph ${graph_status:-${graph}}" \
-        "graph_args ${graph_args_status:-"--base 1000 --lower-limit -1 --upper-limit 1 --rigid"}" \
+        "graph_args ${graph_args_status:-"--lower-limit -1 --upper-limit 1"}" \
         "graph_height ${graph_height_status:-${graph_height}}" \
         "graph_info ${graph_info_status:-"This graph shows Pi-hole's blocking status"}" \
         "graph_category ${graph_category_status:-${graph_category}}" \
@@ -1735,7 +1736,7 @@ pihole_munin_config_status() {
 pihole_munin_config_unique() {
     printf "%s\n" \
         "graph ${graph_unique:-${graph}}" \
-        "graph_args ${graph_args_unique:-"--base 1000 --lower-limit 0 --slope-mode"}" \
+        "graph_args ${graph_args_unique:-${graph_args}}" \
         "graph_category ${graph_category_unique:-${graph_category}}" \
         "graph_height ${graph_height_unique:-${graph_height}}" \
         "graph_info ${graph_info_unique:-"This graph shows the number of unique domains queried by Pi-hole"}" \
@@ -2101,11 +2102,12 @@ pihole_munin_suggest() {
 
 pihole_munin_root() {
     [ "$(id -u)" -eq "0" ] && return 0
-    exec sudo "${0}" "$@" || { printf "❌ Error: Failed to acquire root privileges.\n" >&2; return 1; }
+    exec sudo "${0}" "$@" || { printf "❌ Error: Failed to acquire root privileges.\n" >&2; exit 1; }
 }
 
 plugins_available="${PLUGINS_AVAILABLE:-/usr/share/munin/plugins}"
 plugins_enabled="${PLUGINS_ENABLED:-/etc/munin/plugins}"
+pihole_munin_path="${plugins_available}/pihole_munin_"
 
 pihole_munin_header() {
     [ "${1}" = "clear" ] && clear
@@ -2119,6 +2121,7 @@ pihole_munin_install() {
     pihole_munin_root "$@"
     pihole_munin_header "clear"
     dry_run="0"
+    plugins_to_clean="0"
     for option in "$@"; do
         case "${option}" in
             "-D"|"dry"|"--dry-run")
@@ -2126,62 +2129,66 @@ pihole_munin_install() {
             ;;
         esac
     done
-    printf "%s Checking for required directories:\n  %s\n  %s\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🟢" )" \
-        "${plugins_available}" \
-        "${plugins_enabled}"
-    [ -d "${plugins_available}" ] || { printf "❌ Error: Missing directory: %s\n" "${plugins_available}" >&2; return 1; }
-    [ -d "${plugins_enabled}" ] || { printf "❌ Error: Missing directory: %s\n" "${plugins_enabled}" >&2; return 1; }
-    printf "%s Success.\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
-    if [ "${dry_run}" -eq "1" ]; then
-        printf "%s Installing pihole_munin_ to:\n  %s/pihole_munin_\n" "🛟 [DRY RUN]" "${plugins_available}"
-    else
-        printf "%s Installing pihole_munin_ to:\n  %s/pihole_munin_\n" "🟢" "${plugins_available}"
+    printf "%s Installing pihole_munin_ to:  %s\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "🟢" || printf "🟢 [DRY RUN]")" \
+        "${pihole_munin_path}"
+    [ -d "${plugins_available}" ] || { printf "❌ Error: Missing directory '%s'\n" "${plugins_available}" >&2; exit 1; }
+    [ -d "${plugins_enabled}" ] || { printf "❌ Error: Missing directory '%s'\n" "${plugins_enabled}" >&2; exit 1; }
+    if [ "${dry_run}" -eq "0" ]; then
         cp -f "${0}" "${plugins_available}/pihole_munin_" || {
             printf "❌ Error: Failed to copy plugin.\n" >&2
-            return 1
+            exit 1
         }
         chmod 755 "${plugins_available}/pihole_munin_" || {
             printf "❌ Error: Failed to set permissions.\n" >&2
-            return 1
+            exit 1
         }
     fi
-    printf "\n%s Success.\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
-    printf "\n%s Cleaning up old plugins in %s:\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🟢" )" \
-        "${plugins_enabled}"
-    if [ "$dry_run" -eq "0" ]; then
-        rm -f "${plugins_available}/pihole_munin_*" || {
-            printf "❌ Error: Failed to remove old plugins.\n" >&2
-            return 1
-        }
-    fi
-    printf "\n%s Success.\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
-    printf "\n%s Enabling the following plugins:\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🟢" )"
-    for plugin in ${plugins}; do
-        enabled_plugin_path="${plugins_enabled}/pihole_munin_${plugin}"
-        if [ "${dry_run}" -eq "1" ]; then
-            printf "  %s\n" "${plugin}"
-        else
-            ln -sf "${plugins_available}/pihole_munin_" "${enabled_plugin_path}" || {
-                printf "❌ Error: Failed to create symlink: %s\n" "${enabled_plugin_path}" >&2
-                return 1
-            }
-            printf "  %s\n" "${plugin}"
-        fi
+    printf "  %s\n\n%s Success.\n" \
+        "${plugins_available}/pihole_munin_" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
+    for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
+        [ ! -e "${plugin_to_clean}" ] && continue
+        [ "${plugin_to_clean}" = "${plugins_enabled}/pihole_munin_" ] && continue
+        plugins_to_clean="1"
+        break
     done
-    if [ "${dry_run}" -eq "1" ]; then
-        printf "\n✅ [DRY RUN] Success.\n"
-    else
+    if [ "$plugins_to_clean" -eq 1 ]; then
+        printf "\n%s Cleaning plugin directory...\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "🟢" || printf "🟢 [DRY RUN]" )"
+        for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
+            [ ! -e "${plugin_to_clean}" ] && continue
+            [ "${plugin_to_clean}" = "${plugins_enabled}/pihole_munin_" ] && continue
+            printf "  %s\n" "${plugin_to_clean}"
+            if [ "$dry_run" -eq "0" ]; then
+                rm -f "${plugin_to_clean}" || {
+                    printf "❌ Error: Failed to remove plugin '%s'\n" "${plugin_to_clean}" >&2
+                    exit 1
+                }
+            fi
+        done
+        printf "\n%s Success.\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
+    fi
+    printf "\n%s Enabling pihole_munin_ plugins...\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "🟢" || printf "🟢 [DRY RUN]" )"
+    for plugin in ${plugins}; do
+        if [ "${dry_run}" -eq "0" ]; then
+            ln -sf "${plugins_available}/pihole_munin_" "${plugins_enabled}/pihole_munin_${plugin}" || {
+                printf "❌ Error: Failed to create symlink: %s\n" "${plugins_enabled}/pihole_munin_${plugin}" >&2
+                exit 1
+            }
+        fi
+        printf "  %s\n" "${plugin}"
+    done
+    if [ "${dry_run}" -eq "0" ]; then
         printf "\n%s\n\n%s\n\n%s\n%s\n" \
             "✅ Success." \
-            "ℹ️ Please restart the Munin node." \
+            "ℹ️ Info: Please restart the Munin node." \
             "Example:" \
             "  sudo systemctl restart munin-node.service"
+    else
+        printf "\n✅ [DRY RUN] Success.\n"
     fi
 }
 
@@ -2189,61 +2196,47 @@ pihole_munin_uninstall() {
     pihole_munin_root "$@"
     pihole_munin_header "clear"
     dry_run="0"
-    confirm="0"
     for option in "$@"; do
         case "${option}" in
-            "-C"|"confirm"|"--confirm"|"-y"|"yes"|"--yes")
-                confirm="1"
-            ;;
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
             ;;
         esac
     done
+    printf "%s Disabling pihole_munin_ plugins...\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "🔴" || printf "🔴 [DRY RUN]" )"
     [ -d "${plugins_enabled}" ] || {
         printf "❌ Error: Missing directory: %s\n" "${plugins_enabled}" >&2
-        return 1
+        exit 1
     }
-    printf "%s Disabling the following plugins:\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🔴" )"
     for plugin in ${plugins}; do
-        enabled_plugin_path="${plugins_enabled}/pihole_munin_${plugin}"
-        if [ -L "${enabled_plugin_path}" ]; then
-            if [ "${dry_run}" -eq "1" ]; then
-                printf "  %s\n" "${plugin}"
-            else
-                rm -f "${enabled_plugin_path}" || {
-                    printf "❌ Error: Failed to remove symlink: %s\n" "${enabled_plugin_path}" >&2
-                    return 1
+        if [ -L "${plugins_enabled}/pihole_munin_${plugin}" ]; then
+            if [ "${dry_run}" -eq "0" ]; then
+                rm -f "${plugins_enabled}/pihole_munin_${plugin}" || {
+                    printf "❌ Error: Failed to remove symlink: %s\n" "${plugins_enabled}/pihole_munin_${plugin}" >&2
+                    exit 1
                 }
-                printf "  %s\n" "${plugin}"
             fi
+            printf "  %s\n" "${plugin}"
         fi
     done
     printf "\n%s Success.\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
+        "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
     [ -d "${plugins_available}" ] || {
         printf "❌ Error: Missing directory: %s\n" "${plugins_available}" >&2
-        return 1
+        exit 1
     }
-    available_plugin_path="${plugins_available}/pihole_munin_"
-    if [ -e "${available_plugin_path}" ]; then
-        if [ "${confirm}" -eq "1" ]; then
-            if [ "${dry_run}" -eq "1" ]; then
-                printf "\n%s Uninstalling pihole_munin_ from:\n  %s\n" "🛟 [DRY RUN]" "${available_plugin_path}"
-            else
-                printf "\n%s Uninstalling pihole_munin_ from:\n  %s\n" "🔴" "${available_plugin_path}"
-                rm -f "${available_plugin_path}" || {
-                    printf "❌ Error: Failed to remove: %s\n" "${available_plugin_path}" >&2
-                    return 1
-                }
-            fi
-        else
-            printf "⚠️ Skipping uninstall (add --confirm to allow):\n  %s\n" "${available_plugin_path}"
-        fi
+    if [ "${dry_run}" -eq "0" ]; then
+        printf "\n%s Uninstalling pihole_munin_ from:\n  %s\n" "🔴" "${pihole_munin_path}"
+        rm -f "${pihole_munin_path}" || {
+            printf "❌ Error: Failed to remove '%s'\n" "${pihole_munin_path}" >&2
+            exit 1
+        }
+    else
+        printf "\n%s Uninstalling pihole_munin_ from:\n  %s\n" "🔴 [DRY RUN]" "${pihole_munin_path}"
     fi
     printf "\n%s Success.\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
+        "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
 }
 
 pihole_munin_safe_write() {
@@ -2308,7 +2301,6 @@ pihole_munin_safe_prompt() {
         printf "❌ Error: Entered values do not match.\n" >&2
         return 1
     fi
-    return 0
 }
 
 pihole_munin_configure() {
@@ -2322,57 +2314,27 @@ pihole_munin_configure() {
     shift
     case "${configure_command}" in
         "list")
-            [ -f "${config_file}" ] || { printf "❌ Error: Configuration file not found.\n" >&2; return 1; }
-            matches=$(grep -E '^( *env\.| *user\s)' "${config_file}")
-            [ -z "${matches}" ] && { printf "ℹ️ No configuration variables found in %s.\n" "${config_file}"; return 0; }
-            printf "🔍 Listing variables in:\n  %s\n" "${config_file}"
+            [ -f "${config_file}" ] || { printf "❌ Error: Configuration file not found.\n" >&2; exit 1; }
+            matches=$(grep -E '^( *env\.| *user\s| *group\s)' "${config_file}")
+            [ -z "${matches}" ] && { printf "ℹ️ Info: No config variables found in '%s'.\n" "${config_file}"; return 0; }
+            printf "🔍 Listing variables in %s...\n" "${config_file}"
             printf "%s\n" "${matches}" | while IFS= read -r config_line; do
-                case "${config_line}" in
-                    *"env."*"_password "*|*"env.password "*)
-                        list_var=$(printf '%s' "${config_line}" | awk '{print $1}')
-                        list_val=$(printf '%s' "${config_line}" | cut -d' ' -f2-)
-                        list_len=$(printf '%s' "${list_val}" | wc -c)
-                        [ "${list_len}" -gt 0 ] && list_len=$((list_len - 1))
-                        list_masked=$(printf '%*s' "${list_len}" '' | tr ' ' '*')
-                        printf '  🔑 %s %s\n' "${list_var}" "${list_masked}"
-                    ;;
-                    *"env.proto "*)
-                        printf '  🔗 %s\n' "${config_line}"
-                    ;;
-                    *"env.host "*)
-                        printf '  🖥️ %s\n' "${config_line}"
-                    ;;
-                    *"env.port "*)
-                        printf '  🔌 %s\n' "${config_line}"
-                    ;;
-                    *"env.graph_category "*)
-                        printf '  📈 %s\n' "${config_line}"
-                    ;;
-                    *"env.graph_title "*)
-                        printf '  🏷️ %s\n' "${config_line}"
-                    ;;
-                    *"env."*"_crit "*)
-                        printf '  🚨 %s\n' "${config_line}"
-                    ;;
-                    *"env."*"_warn "*)
-                        printf '  ⚠️ %s\n' "${config_line}"
-                    ;;
-                    "user "*)
-                        printf '  👤 %s\n' "${config_line}"
-                    ;;
-                    "group "*)
-                        printf '  👥 %s\n' "${config_line}"
-                    ;;
-                    *)
-                        printf '  🔧 %s\n' "${config_line}"
-                    ;;
-                esac
+                if printf '%s' "${config_line}" | grep -qE 'env\.(.*_password|password) '; then
+                    list_var=$(printf '%s' "${config_line}" | awk '{print $1}')
+                    list_val=$(printf '%s' "${config_line}" | cut -d' ' -f2-)
+                    list_len=$(printf '%s' "${list_val}" | wc -c)
+                    [ "${list_len}" -gt 0 ] && list_len=$((list_len - 1))
+                    list_masked=$(printf '%*s' "${list_len}" '' | tr ' ' '*')
+                    printf '  %s %s\n' "${list_var}" "${list_masked}"
+                else
+                    printf '  %s\n' "${config_line}"
+                fi
             done
         ;;
         "add")
             [ -z "${1}" ] && {
                 printf "❌ Error: No variable specified for addition.\n" >&2
-                return 1
+                exit 1
             }
             add_var="${1}"
             case "${add_var}" in
@@ -2383,7 +2345,7 @@ pihole_munin_configure() {
             shift
             add_val="$*"
             trimmed_value=$(printf '%s' "${add_val}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            printf "➕ Adding variable to:\n  %s\n" "${config_file}"
+            printf "➕ Adding variable to %s...\n" "${config_file}"
             case "${add_var}" in
                 "pihole_password")
                     case "${trimmed_value}" in
@@ -2391,29 +2353,31 @@ pihole_munin_configure() {
                             :
                         ;;
                         *)
-                            printf "\n⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "${add_var}" >&2
-                            printf "  This may be visible in shell history or process lists.\n" >&2
+                            printf "\n%s\n\n%s\n" \
+                                "⚠️ Warning: Sensitive variable '${add_var}' passed on the command line." \
+                                "This may be visible in shell history or process lists." >&2
                         ;;
                     esac
                     if [ -z "${trimmed_value}" ]; then
                         printf "\n%s\n\n%s\n\n" \
                             "⚠️ Warning: Sensitive variable '${add_var}' detected." \
-                            "ℹ️ You will be prompted to enter the value securely." >&2
+                            "ℹ️ Info: You will be prompted to enter the value securely." >&2
                         if ! pihole_munin_safe_prompt; then
-                            return 1
+                            exit 1
                         fi
                         trimmed_value="${add_val}"
                     fi
                 ;;
                 "app_password")
-                    printf "\n⚠️ Warning: Sensitive variable '%s' passed on the command line.\n" "${add_var}" >&2
-                    printf "  This may be visible in shell history or process lists.\n" >&2
+                    printf "\n%s\n\n%s\n" \
+                        "⚠️ Warning: Sensitive variable '${add_var}' passed on the command line." \
+                        "This may be visible in shell history or process lists." >&2
                     if [ -z "${trimmed_value}" ]; then
                         printf "\n%s\n\n%s\n\n" \
                             "⚠️ Warning: Sensitive variable '${add_var}' detected." \
-                            "ℹ️ You will be prompted to enter the value securely." >&2
+                            "ℹ️ Info: You will be prompted to enter the value securely." >&2
                         if ! pihole_munin_safe_prompt; then
-                            return 1
+                            exit 1
                         fi
                         trimmed_value="${add_val}"
                     fi
@@ -2421,7 +2385,7 @@ pihole_munin_configure() {
             esac
             [ -z "${trimmed_value}" ] && {
                 printf "❌ Error: Value for '%s' is empty or whitespace only.\n" "${add_var}" >&2
-                return 1
+                exit 1
             }
             case "${add_var}" in
                 "user"|"group")
@@ -2438,8 +2402,8 @@ pihole_munin_configure() {
             printf "\n✅ Success.\n"
         ;;
         "remove")
-            [ -z "${1}" ] && { printf "❌ Error: No variable specified for removal.\n" >&2; return 1; }
-            printf "➖ Removing variable from:\n  %s\n" "${config_file}"
+            [ -z "${1}" ] && { printf "❌ Error: No variable specified for removal.\n" >&2; exit 1; }
+            printf "➖ Removing variable from %s...\n" "${config_file}"
             remove_var="${1}"
             case "${remove_var}" in
                 "user")
@@ -2458,11 +2422,11 @@ pihole_munin_configure() {
                 pihole_munin_safe_move "${config_file}.tmp" "${config_file}"
                 printf "\n✅ Success.\n"
             else
-                printf "⚠️ Variable '%s' not found in %s\n" "${remove_var}" "${config_file}"
+                printf "⚠️ Warning: Variable '%s' not found in %s\n" "${remove_var}" "${config_file}"
             fi
         ;;
         *)
-            printf "⚠️ Unknown command: %s\n" "${configure_command}" >&2
+            printf "⚠️ Warning: Unknown command '%s'\n" "${configure_command}" >&2
         ;;
     esac
 }
@@ -2489,9 +2453,8 @@ pihole_munin_version() {
                 skip_check="1"
             ;;
             *)
-                printf "⚠️ Unknown option: %s\n\n" "${option}"
+                printf "⚠️ Warning: Unknown option '%s'\n\n" "${option}"
                 pihole_munin_help version
-                return 1
             ;;
         esac
     done
@@ -2502,14 +2465,14 @@ pihole_munin_version() {
             if pihole_munin_check "${remote_version}" "${version}"; then
                 printf "\n%s\n\n%s\n%s\n" \
                 "A newer version is available: ${remote_version}" \
-                "ℹ️ Run '${0} admin update' to update the plugin, or run" \
+                "ℹ️ Info: Run '${0} admin update' to update the plugin, or run" \
                 "'${0} help admin update' for more information."
             else
                 printf "\n%s\n" "✅ You are using the latest version."
             fi
         else
             printf "❌ Error: Unable to check for updates.\n" >&2
-            return 1
+            exit 1
         fi
     fi
 }
@@ -2517,102 +2480,140 @@ pihole_munin_version() {
 pihole_munin_update() {
     pihole_munin_root "$@"
     pihole_munin_header
-    repo_url="https://github.com/saint-lascivious/pihole_munin_"
-    raw_url="${repo_url}/raw/master/pihole_munin_"
-    target="${plugins_available}/pihole_munin_"
-    confirm="0"
+    repo_url="github.com/saint-lascivious/pihole_munin_"
+    raw_url="https://${repo_url}/raw/master/pihole_munin_"
     for option in "$@"; do
         case "${option}" in
-            "-C"|"confirm"|"--confirm"|"-y"|"yes"|"--yes")
-                confirm="1"
-            ;;
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
             ;;
         esac
     done
-    [ -f "${target}" ] || {
-        printf "❌ Error: Update target '%s' not found.\n" "${target}" >&2
-        return 1
+    [ -f "${pihole_munin_path}" ] || {
+        printf "❌ Error: Update target '%s' not found.\n" "${pihole_munin_path}" >&2
+        exit 1
     }
     tmp_file="$(mktemp /tmp/pihole_munin_update.XXXXXX)" || {
         printf "❌ Error: Failed to create temporary file.\n" >&2
-        return 1
+        exit 1
     }
-    printf "%s Updating pihole_munin_ plugin...\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🔃" )"
+    printf "%s Fetching pihole_munin_ from %s...\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "🔃" || printf "🔃 [DRY RUN]" )" \
+        "${repo_url}"
     if curl -fsSL "${raw_url}" -o "${tmp_file}"; then
+        printf "  %s\n" "${tmp_file}"
         [ -s "${tmp_file}" ] || {
-            printf "❌ Error: Downloaded update is empty.\n" >&2
+            printf "❌ Error: Downloaded is empty.\n" >&2
             rm -f "${tmp_file}"
-            return 1
+            exit 1
         }
+        grep -q '^#!/usr/bin/env sh' "${tmp_file}" || {
+            printf "❌ Error: Downloaded file is not a valid script.\n" >&2
+            rm -f "${tmp_file}"
+            exit 1
+        }
+        printf "%s Success.\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
         remote_version=$(grep -E '^version=' "${tmp_file}" | cut -d= -f2)
-        local_version=$(grep -E '^version=' "${target}" | cut -d= -f2)
-        if [ -n "${remote_version}" ] && [ -n "${local_version}" ]; then
-            printf "🔄 Checking for updates...\n"
-            printf "📦 Local version:  %s\n" "${local_version}"
-            printf "🌐 Remote version: %s\n" "${remote_version}"
+        local_version=$(grep -E '^version=' "${pihole_munin_path}" | cut -d= -f2)
+        version_regex='^[0-9]+(\.[0-9]+){1,2}$'
+        if [ -z "${local_version}" ]; then
+            local_version_display="unknown"
+        elif printf '%s' "${local_version}" | grep -Eq "${version_regex}"; then
+            local_version_display="${local_version}"
+        else
+            local_version_display="invalid"
+        fi
+        if [ -z "${remote_version}" ]; then
+            remote_version_display="unknown"
+        elif printf '%s' "${remote_version}" | grep -Eq "${version_regex}"; then
+            remote_version_display="${remote_version}"
+        else
+            remote_version_display="invalid"
+        fi
+        printf "\n%s Checking versions...\n%s\n%s\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "🔄" || printf "🔄 [DRY RUN]" )" \
+            "  local version: ${local_version_display}" \
+            "  remote version: ${remote_version_display}"
+        if [ "${local_version_display}" = "invalid" ] || [ "${remote_version_display}" = "invalid" ]; then
+            printf "\n⚠️ Warning: One or both version strings are invalid.\n"
+        fi
+        if [ "${local_version_display}" = "unknown" ] || [ "${remote_version_display}" = "unknown" ]; then
+            printf "\n⚠️ Warning: One or both version strings are unknown.\n"
+        fi
+        if [ "${local_version_display}" = "invalid" ] || [ "${remote_version_display}" = "invalid" ] \
+           || [ "${local_version_display}" = "unknown" ] || [ "${remote_version_display}" = "unknown" ]; then
+            if [ -t 0 ]; then
+                printf "\nContinue anyway? [y/N] "
+                read -r answer
+                case "${answer}" in
+                    [yY]|[yY][eE][sS])
+                        printf "Proceeding with update...\n"
+                    ;;
+                    *)
+                        printf "❌ Error: Aborted by user.\n"
+                        rm -f "${tmp_file}"
+                        exit 1
+                    ;;
+                esac
+            else
+                printf "❌ Error: Aborted (non-interactive).\n"
+                rm -f "${tmp_file}"
+                exit 1
+            fi
+        else
             if ! pihole_munin_check "${remote_version}" "${local_version}"; then
                 printf "\n✅ You are using the latest version.\n"
                 rm -f "${tmp_file}"
-                return 0
+                exit 0
+            else
+                printf "\nℹ️ Info: A newer version is available.\n"
             fi
-        else
-            printf "⚠️ Could not determine version(s), proceeding with update.\n"
         fi
+        printf "\n%s Backing up %s...\n" "${pihole_munin_path}" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "🗄️" || printf "🗄️ [DRY RUN]" )"
         if [ "${dry_run}" -eq "0" ]; then
-            printf "\n🔄 Backing up existing script...\n"
-            cp -f "${target}" "${target}.bak" || {
+            cp -f "${pihole_munin_path}" "${pihole_munin_path}.bak" || {
                 printf "❌ Error: Failed to back up existing script.\n" >&2
                 rm -f "${tmp_file}"
-                return 1
+                exit 1
             }
-            printf "🗄️ Backup created: %s\n" "${target}.bak"
-            printf "\n%s\n\n%s\n%s\n" \
-                "ℹ️ You can restore this backup at any time." \
+            printf "%s\n\n%s\n\n%s\n\n%s\n%s\n" \
+                "  ${pihole_munin_path}.bak" \
+                "✅ Success." \
+                "ℹ️ Info: You can restore this backup at any time." \
                 "Example:" \
-                "  sudo cp -f ${target}.bak ${target}"
+                "  sudo cp -f ${pihole_munin_path}.bak ${pihole_munin_path}"
+        else
+            printf "%s\n\n%s\n" \
+                "  ${pihole_munin_path}.bak" \
+                "✅ [DRY RUN] Success."
         fi
         printf "\n%s Installing update...\n" \
-            "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🔄")"
-        if [ "${target}" = "${0}" ] && [ "${confirm}" = "0" ]; then
-            printf "%s\n%s\n\n%s\n%s\n" \
-                "⚠️ You are updating the currently running script," \
-                "  add --confirm to bypass this prompt." \
-                "Example:" \
-                "  ${0} admin update --confirm"
-            printf "\nContinue? Type 'yes' to proceed: "
-            read -r answer
-            [ "$(printf %s "${answer}" | tr '[:upper:]' '[:lower:]')" = "yes" ] || {
-                printf "❌ Aborted.\n"
-                rm -f "${tmp_file}"
-                return 1
-            }
-        fi
+            "$( [ "${dry_run}" -eq "0" ] && printf "🟢" || printf "🟢 [DRY RUN]")"
         chmod 755 "${tmp_file}" || {
             printf "❌ Error: Failed to set permissions on update.\n" >&2
             rm -f "${tmp_file}"
-            return 1
+            exit 1
         }
         if [ "${dry_run}" -eq "0" ]; then
-            mv "${tmp_file}" "${target}" || {
+            mv "${tmp_file}" "${pihole_munin_path}" || {
                 printf "❌ Error: Failed to install updated plugin.\n" >&2
                 rm -f "${tmp_file}"
-                return 1
+                exit 1
             }
             printf "\n%s\n\n%s\n\n%s\n%s\n" \
                 "✅ Success." \
-                "ℹ️ Please restart the Munin node." \
+                "ℹ️ Info: Please restart the Munin node." \
                 "Example:" \
                 "  sudo systemctl restart munin-node.service"
         else
             printf "\n✅ [DRY RUN] Success.\n"
         fi
     else
-        printf "❌ Error: Unable to fetch update.\n" >&2
+        printf "❌ Error: Failed to fetch pihole_munin_.\n" >&2
         rm -f "${tmp_file}"
-        return 1
+        exit 1
     fi
 }
 
@@ -2635,15 +2636,10 @@ pihole_munin_test() {
             ;;
         esac
     done
-    printf "\n%s Testing the following plugins:\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "🛟 [DRY RUN]" || printf "🧩")"
-    if [ "${dry_run}" -eq "1" ]; then
+    printf "\n%s Testing pihole_munin_ plugins:\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "🧩" || printf "🧩 [DRY RUN]")"
+    if [ "${dry_run}" -eq "0" ]; then
         for plugin in ${plugins}; do
-            printf "  %s\n" "${plugin}"
-        done
-    else
-        for plugin in ${plugins}; do
-            printf "  %s\n" "${plugin}"
             if [ "${verbose}" -eq "1" ]; then
                 if ! munin-run pihole_munin_"${plugin}" config; then
                     printf "❌ Error: config failed for plugin %s\n" "${plugin}"
@@ -2663,10 +2659,19 @@ pihole_munin_test() {
                     exit 1
                 fi
             fi
+            printf "  %s\n" "${plugin}"
+        done
+    else
+        for plugin in ${plugins}; do
+            [ -L "${plugins_available}/pihole_munin_${plugin}" ] || {
+                printf "❌ Error: Plugin %s not found in %s.\n" "${plugin}" "${plugins_available}" >&2
+                exit 1
+            }
+            printf "  %s\n" "${plugin}"
         done
     fi
     printf "\n%s Success.\n" \
-        "$( [ "${dry_run}" -eq "1" ] && printf "✅ [DRY RUN]" || printf "✅" )"
+        "$( [ "${dry_run}" -eq "0" ] && printf "✅" || printf "✅ [DRY RUN]" )"
 }
 
 pihole_munin_help() {
@@ -2679,23 +2684,38 @@ pihole_munin_help() {
                         "Add or update a plugin configuration variable." \
                         "Variables SHOULD be entered without the env. prefix, and values SHOULD be" \
                         "without encapsulating quotation." \
-                        "ℹ️ You will be prompted to enter the value securely if it is sensitive" \
+                        "ℹ️ Info: You will be prompted to enter the value securely if it is sensitive" \
                         "(e.g. app_password or pihole_password)." \
                         "Examples:" \
                         "  ${0} ${1} ${2} host 192.168.1.10" \
                         "  ${0} ${1} ${2} user pihole"
                 ;;
                 "-i"|"install"|"--install")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
+                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
                         "❓ Usage: ${0} ${1} ${2} [<option>]" \
                         "Install pihole_munin_ and enable all plugins." \
-                        "ℹ️ This command will install the plugin itself and enable all pihole_munin_" \
-                        " plugins." \
+                        "ℹ️ Info: This command will install pihole_munin_ and enable all pihole_munin_" \
+                        "plugins." \
                         "Options:" \
                         "  -D, dry, --dry-run       Show what would be done, without making any changes." \
-                        "Examples:" \
-                        "  ${0} ${1} ${2}" \
+                        "Example:" \
                         "  ${0} ${1} ${2} --dry-run"
+                ;;
+                "-l"|"list"|"--list")
+                    printf "%s\n\n%s\n\n%s\n" \
+                        "❓ Usage: ${0} ${1} ${2}" \
+                        "List all configured plugin variables." \
+                        "ℹ️ Info: Sensitive variables (e.g. passwords) will be masked."
+                ;;
+                "-p"|"password"|"--password")
+                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
+                        "❓ Usage: ${0} ${1} ${2} [<password>]" \
+                        "Set the Pi-hole password." \
+                        "ℹ️ Info: This command will add or update the pihole_password variable in the" \
+                        "plugin configuration file." \
+                        "Examples:" \
+                        "  ${0} ${1} ${2} mysecretpassword" \
+                        "  ${0} ${1} ${2} nopassword"
                 ;;
                 "-r"|"remove"|"--remove")
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n" \
@@ -2705,51 +2725,27 @@ pihole_munin_help() {
                         "  ${0} ${1} ${2} host" \
                         "  ${0} ${1} ${2} user"
                 ;;
-                "-l"|"list"|"--list")
-                    printf "%s\n\n%s\n\n%s\n\n%s\n%s\n" \
-                        "❓ Usage: ${0} ${1} ${2}" \
-                        "List all configured plugin variables." \
-                        "ℹ️ Sensitive variables (e.g. passwords) will be masked." \
-                        "Example:" \
-                        "  ${0} ${1} ${2}"
-                ;;
                 "-u"|"uninstall"|"--uninstall")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n" \
+                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
                         "❓ Usage: ${0} ${1} ${2} [<option>]" \
                         "Disable all plugins and uninstall pihole_munin_." \
-                        "ℹ️ This command will remove all pihole_munin_ plugins from the Munin node and" \
-                        "uninstall the plugin itself." \
+                        "ℹ️ Info: This command will remove all pihole_munin_ plugins from the Munin node" \
+                        "and uninstall the plugin itself." \
                         "Options:" \
-                        "  -C, confirm, --confirm   Confirm the uninstallation of pihole_munin_." \
                         "  -D, dry, --dry-run       Show what would be done, without making any changes." \
-                        "Examples:" \
-                        "  ${0} ${1} ${2}" \
-                        "  ${0} ${1} ${2} --confirm" \
+                        "Example:" \
                         "  ${0} ${1} ${2} --dry-run"
                 ;;
                 "-U"|"update"|"--update")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n" \
+                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
                         "❓ Usage: ${0} ${1} ${2} [<option>]" \
                         "Update pihole_munin_ to the latest version." \
-                        "ℹ️ This command will download the latest version from the GitHub repository" \
+                        "ℹ️ Info: This command will download the latest version from the GitHub repository" \
                         "and replace the current script." \
                         "Options:" \
-                        "  -C, confirm, --confirm   Bypass confirmation when self-updating." \
                         "  -D, dry, --dry-run       Show what would be done, without making any changes." \
-                        "Examples:" \
-                        "  ${0} ${1} ${2}" \
-                        "  ${0} ${1} ${2} --confirm" \
+                        "Example:" \
                         "  ${0} ${1} ${2} --dry-run"
-                ;;
-                "-p"|"password"|"--password")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
-                        "❓ Usage: ${0} ${1} ${2} [<password>]" \
-                        "Set the Pi-hole password." \
-                        "ℹ️ This command will add or update the pihole_password variable in the plugin" \
-                        "configuration file." \
-                        "Examples:" \
-                        "  ${0} ${1} ${2} mysecretpassword" \
-                        "  ${0} ${1} ${2} nopassword"
                 ;;
                 "" )
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
@@ -2763,12 +2759,12 @@ pihole_munin_help() {
                         "  -r, remove                   Remove a variable from the plugin configuration." \
                         "  -u, uninstall, --uninstall   Disable all plugins and uninstall pihole_munin_." \
                         "  -U, update                   Update pihole_munin_ to the latest version." \
-                        "ℹ️ Run '${0} help admin <subcommand>' for more information on a subcommand."
+                        "ℹ️ Info: Run '${0} help admin <subcommand>' for more information on a subcommand."
                 ;;
                 * )
                     printf "%s\n\n%s\n" \
-                        "⚠️ Unknown ${1} subcommand: ${2}" \
-                        "ℹ️ Run '${0} help admin' for a list of available subcommands."
+                        "⚠️ Warning: Unknown ${1} subcommand '${2}'" \
+                        "ℹ️ Info: Run '${0} help admin' for a list of available subcommands."
                 ;;
             esac
         ;;
@@ -2811,7 +2807,7 @@ pihole_munin_help() {
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                 "❓ Usage: ${0} ${1} [<password>]" \
                 "Shortcut to set the Pi-hole password." \
-                "ℹ️ This command will add or update the pihole_password variable in the plugin" \
+                "ℹ️ Info: This command will add or update the pihole_password variable in the plugin" \
                 "configuration file." \
                 "Examples:" \
                 "  ${0} ${1} mysecretpassword" \
@@ -2829,28 +2825,24 @@ pihole_munin_help() {
                 "This creates one graph per link name, using just one plugin as source."
         ;;
         "-t"|"test"|"--test-plugins")
-            printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n" \
+            printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n%s\n" \
                 "❓ Usage: ${0} ${1}" \
                 "Test all pihole_munin_ plugins." \
                 "This will run the config and fetch commands for each plugin, and report any" \
                 "errors encountered during the process." \
                 "Options:" \
                 "  -D, dry, --dry-run       Show what would be done, without making any changes." \
-                "  -O, output, --output     Save the plugin test output to a file." \
                 "  -V, verbose, --verbose   Show detailed output for each plugin during the test." \
                 "Examples:" \
-                "  ${0} ${1}" \
                 "  ${0} ${1} --dry-run" \
-                "  ${0} ${1} --output" \
-                "  ${0} ${1} --output /tmp/my-test-run" \
                 "  ${0} ${1} --verbose"
         ;;
         "-v"|"version"|"--version")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                 "❓ Usage: ${0} ${1} [<option>]" \
                 "Display the plugin version string." \
-                "ℹ️ If not skipped, a check for a newer version will be performed using a remote" \
-                "DNS TXT record located at the pihole-munin.sainternet.xyz domain." \
+                "ℹ️ Info: If not skipped, a check for a newer version will be performed using a" \
+                "   remote DNS TXT record located at the pihole-munin.sainternet.xyz domain." \
                 "Options:" \
                 "  -S, skip, --skip-version-check   Skip remote plugin version check." \
                 "Examples:" \
@@ -2870,12 +2862,11 @@ pihole_munin_help() {
                 "  suggest                      List available plugins." \
                 "  -t, test, --test-plugins     Test all pihole_munin_ plugins." \
                 "  -v, version, --version       Display the plugin version string." \
-                "ℹ️ Run '${0} help <command>' for more information on a command."
+                "ℹ️ Info: Run '${0} help <command>' for more information on a command."
         ;;
         * )
-            printf "⚠️ Unknown help topic: %s\n\n" "$*"
+            printf "⚠️ Warning: Unknown help topic '%s'\n\n" "$*"
             pihole_munin_help
-            return 1
         ;;
     esac
 }
@@ -2905,7 +2896,7 @@ fi
 case "${1}" in
     "-a"|"admin"|"--admin")
         case "${2}" in
-            "-A"|"add"|"--add"|"-r"|"remove"|"--remove")
+            "-A"|"add"|"--add")
                 pihole_munin_configure "${2}" "$@"
             ;;
             "-i"|"install"|"--install")
@@ -2914,14 +2905,17 @@ case "${1}" in
             "-l"|"list"|"--list")
                 pihole_munin_configure "list"
             ;;
+            "-p"|"password"|"--password")
+                pihole_munin_configure "add" "pihole_password" "${3:-}"
+            ;;
+            "-r"|"remove"|"--remove")
+                pihole_munin_configure "${2}" "${3}"
+            ;;
             "-u"|"uninstall"|"--uninstall")
                 pihole_munin_uninstall "$@"
             ;;
             "-U"|"update"|"--update")
                 pihole_munin_update "$@"
-            ;;
-            "-p"|"password"|"--password")
-                pihole_munin_configure "add" "pihole_password" "${3:-}"
             ;;
             "")
                 pihole_munin_help "${1}"
@@ -2955,7 +2949,7 @@ case "${1}" in
                 pihole_munin_help "${2}"
             ;;
             *)
-                printf "⚠️ Unknown help topic: %s\n\n" "${2}"
+                printf "⚠️ Warning: Unknown help topic '%s'\n\n" "${2}"
                 pihole_munin_help
             ;;
         esac

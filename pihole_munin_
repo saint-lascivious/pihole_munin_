@@ -2707,10 +2707,15 @@ pihole_munin_test() {
     pihole_munin_header
     dry_run="0"
     verbose="0"
+    trace="0"
     for option in "$@"; do
         case "${option}" in
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
+            ;;
+            "-T"|"trace"|"--trace")
+                trace="1"
+                verbose="1"
             ;;
             "-V"|"verbose"|"--verbose")
                 verbose="1"
@@ -2722,11 +2727,13 @@ pihole_munin_test() {
     if [ "${dry_run}" -eq "0" ]; then
         for plugin in ${plugins}; do
             if [ "${verbose}" -eq "1" ]; then
-                if ! munin-run pihole_munin_"${plugin}" config; then
+                munin_run_cmd="munin-run pihole_munin_${plugin}"
+                [ "${trace}" -eq "1" ] && munin_run_cmd="$munin_run_cmd --debug"
+                if ! eval "$munin_run_cmd config"; then
                     printf "%s\n" "  [❌] 'config' failed for plugin '${plugin}'."
                     exit 1
                 fi
-                if ! munin-run pihole_munin_"${plugin}" fetch; then
+                if ! eval "$munin_run_cmd fetch"; then
                     printf "%s\n" "  [❌] 'fetch' failed for plugin '${plugin}'."
                     exit 1
                 fi
@@ -2907,16 +2914,20 @@ pihole_munin_help() {
                 "       This creates one graph per link name, using just one plugin as source."
         ;;
         "-t"|"test"|"--test-plugins")
-            printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n%s\n" \
+            printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n" \
                 "  [❓] ${0} ${1}" \
                 "       Test all pihole_munin_ plugins." \
                 "       This will run the config and fetch commands for each plugin, and report" \
                 "       any errors encountered during the process." \
                 "  Options:" \
                 "    -D, dry, --dry-run      Show what would be done, without making any changes." \
-                "    -V, verbose, --verbose  Show detailed output during the test." \
+                "    -T, trace, --trace      Show detailed plugin output during the test." \
+                "    -V, verbose, --verbose  Show plugin output during the test." \
+                "  Note:" \
+                "    Use of '--trace' implies '--verbose' and passes '--debug' to 'munin-run'." \
                 "  Examples:" \
                 "    ${0} ${1} --dry-run" \
+                "    ${0} ${1} --trace" \
                 "    ${0} ${1} --verbose"
         ;;
         "-v"|"version"|"--version")

@@ -38,7 +38,7 @@ Pi-hole >= 6.0
 
 =head1 DESCRIPTION
 
-Munin plugins for monitoring various Pi-hole statistics.
+Munin plugins for monitoring various Pi-hole® ≥ 6.0 statistics.
 
 =head1 MAGIC MARKERS
 
@@ -2266,7 +2266,7 @@ pihole_munin_install() {
             "  [✅] Success." \
             "  [ℹ️] Please restart the Munin node." \
             "  Example:" \
-            "    ${TEXT_GREEN}user@localhost${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo systemctl restart munin-node.service"
+            "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo systemctl restart munin-node.service"
     else
         printf "\n%s\n" "  [✅] (DRY RUN) Success."
     fi
@@ -2664,7 +2664,7 @@ pihole_munin_update() {
                 "  [✅] Success." \
                 "  [ℹ️] You can restore this backup at any time." \
                 "  Example:" \
-                "    ${TEXT_GREEN}user@localhost${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo cp -f ${pihole_munin_path}.bak ${pihole_munin_path}"
+                "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo cp -f ${pihole_munin_path}.bak ${pihole_munin_path}"
         else
             printf "%s\n\n%s\n" \
                 "       ${pihole_munin_path}.bak" \
@@ -2687,7 +2687,7 @@ pihole_munin_update() {
                 "  [✅] Success." \
                 "  [ℹ️] Please restart the Munin node." \
                 "  Example:" \
-                "    ${TEXT_GREEN}user@localhost${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo systemctl restart munin-node.service"
+                "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo systemctl restart munin-node.service"
         else
             printf "\n%s\n" "  [✅] (DRY RUN) Success."
         fi

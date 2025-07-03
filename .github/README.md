@@ -1,6 +1,10 @@
 # pihole_munin_
 <p align="center">
-    <img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/misc/pihole_munin_.png" alt="Munin plugins for monitoring various Pi-hole® ≥ 6.0 statistics."/>
+    <a href="https://github.com/saint-lascivious/pihole_munin_/wiki">
+        <img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/misc/pihole_munin_.png"
+             alt="Munin plugins for monitoring various Pi-hole® ≥ 6.0 statistics."
+             style="max-width: 1000px; width: 100%; height: auto;" />
+    </a>
 </p>
 
 [Munin](https://munin-monitoring.org) [plugins](https://gallery.munin-monitoring.org) for monitoring various [Pi-hole®](https://github.com/pi-hole/pi-hole) ≥ 6.0 statistics.

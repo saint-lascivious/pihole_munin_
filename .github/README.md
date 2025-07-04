@@ -171,26 +171,17 @@ Documentation for `pihole_munin_` can be found in [the pihole_munin_ wiki](https
 
 ---
 
-| ![home][home_icon] | ![install][install_icon] | ![config][config_icon] | ![update][update_icon] | ![help][help_icon] | ![uninstall][uninstall_icon] | ![discuss][discussions_icon] | ![bug][bug_report_icon] |
+| <a href="https://github.com/saint-lascivious/pihole_munin_/wiki/Home" title="Home page"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Home.png" alt="Home" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/wiki/Install" title="Install pihole_munin_"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Install.png" alt="Install" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/wiki/Configuration" title="Configure pihole_munin_"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Configuration.png" alt="Configuration" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/wiki/Update" title="Update pihole_munin_"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Update.png" alt="Update" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/wiki/Help" title="Help with pihole_munin_"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Help.png" alt="Help" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/wiki/Uninstall" title="Uninstall pihole_munin_"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Uninstall.png" alt="Uninstall" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/discussions" title="Ask questions or share feedback"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Discussions.png" alt="Discussions" style="max-width:48px; height:auto;"></a> | <a href="https://github.com/saint-lascivious/pihole_munin_/issues/new?assignees=saint-lascivious&labels=bug&template=BUG_REPORT.md&title=pihole_munin_%3A+bug+report" title="Report a bug in pihole_munin_"><img src="https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Bug_Report.png" alt="Bug Report" style="max-width:48px; height:auto;"></a> |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| [Home][home] | [Install][install] | [Configuration][configuration] | [Update][update] | [Help][help] | [Uninstall][uninstall] | [Discussions] | [Report A Bug] |
+| [Home][home] | [Install][install] | [Configuration][configuration] | [Update][update] | [Help][help] | [Uninstall][uninstall] | [Discussions][discussions] | [Report A Bug][report_a_bug] |
 
-[home]: https://github.com/saint-lascivious/pihole_munin_/wiki/Home
-[install]: https://github.com/saint-lascivious/pihole_munin_/wiki/Install
-[configuration]: https://github.com/saint-lascivious/pihole_munin_/wiki/Configuration
-[update]: https://github.com/saint-lascivious/pihole_munin_/wiki/Update
-[help]: https://github.com/saint-lascivious/pihole_munin_/wiki/Help
-[uninstall]: https://github.com/saint-lascivious/pihole_munin_/wiki/Uninstall
-[Discussions]: https://github.com/saint-lascivious/pihole_munin_/discussions
-[Report A Bug]: https://github.com/saint-lascivious/pihole_munin_/issues/new?assignees=saint-lascivious&labels=bug&template=BUG_REPORT.md&title=pihole_munin_%3A+bug+report
-
-[home_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Home.png "Home page."
-[install_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Install.png "Install pihole_munin_."
-[config_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Configuration.png "Configure pihole_munin_."
-[update_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Update.png "Update pihole_munin_."
-[help_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Help.png "Get help with pihole_munin_."
-[uninstall_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Uninstall.png "Uninstall pihole_munin_."
-[discussions_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Discussions.png "Not sure if you have a bug or issue? Just want to say hello? Discuss pihole_munin_ using the GitHub Discussions platform."
-[bug_report_icon]: https://raw.githubusercontent.com/wiki/saint-lascivious/pihole_munin_/images/icons/Bug_Report.png "Report a bug in pihole_munin_."
+[home]: https://github.com/saint-lascivious/pihole_munin_/wiki/Home  
+[install]: https://github.com/saint-lascivious/pihole_munin_/wiki/Install  
+[configuration]: https://github.com/saint-lascivious/pihole_munin_/wiki/Configuration  
+[update]: https://github.com/saint-lascivious/pihole_munin_/wiki/Update  
+[help]: https://github.com/saint-lascivious/pihole_munin_/wiki/Help  
+[uninstall]: https://github.com/saint-lascivious/pihole_munin_/wiki/Uninstall  
+[discussions]: https://github.com/saint-lascivious/pihole_munin_/discussions  
+[report_a_bug]: https://github.com/saint-lascivious/pihole_munin_/issues/new?assignees=saint-lascivious&labels=bug&template=BUG_REPORT.md&title=pihole_munin_%3A+bug+report  
 
 <p align="right"><sup><sub>© 2025, saint-lascivious (Hayden Pearce)</sub></sup></p>

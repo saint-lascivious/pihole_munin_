@@ -6,7 +6,7 @@ Your assistance is invaluable in helping to keep `pihole_munin_` secure.
 
 | Version   | Support Status     |
 |-----------|--------------------|
-| 5.1.xx    | :white_check_mark: |
+| 6.xx.xx   | :white_check_mark: |
 | ≤ 4.xx.xx | :x:                |
 
 --

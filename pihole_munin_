@@ -2331,7 +2331,6 @@ pihole_munin_uninstall() {
         printf "%s\n" "  [❌] Plugin file '${pihole_munin_path}' does not exist." >&2
         exit 1
     }
-    # Only remove main script if no symlinks remain
     symlink_count=$(find "${plugins_enabled}" -type l -name 'pihole_munin_*' | wc -l)
     if [ "${symlink_count}" -eq 0 ]; then
         if [ "${dry_run}" -eq "0" ]; then

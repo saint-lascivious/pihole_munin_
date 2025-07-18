@@ -2173,15 +2173,22 @@ pihole_munin_autoconf() {
 }
 
 valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status unique"
-plugins="${PLUGINS:-${valid_plugins}}"
+plugins=$(printf "%s\n" "${PLUGINS:-$valid_plugins}" \
+    | sed 's/#.*//;/^[[:space:]]*$/d' \
+    | tr ',\n' ' ' \
+    | tr -s ' ')
 
 pihole_munin_valid_plugins() {
     for plugin in ${plugins}; do
-        if ! printf "%s\n" "${valid_plugins}" | grep -qx "${plugin}"; then
-            printf "  [⚠️] Unknown plugin '%s' in PLUGINS, skipping.\n" "${plugin}" >&2
-            continue
+        found=0
+        for valid in ${valid_plugins}; do
+            [ "$plugin" = "$valid" ] && found=1 && break
+        done
+        if [ "$found" -eq 1 ]; then
+            printf "%s\n" "$plugin"
+        else
+            printf "  [⚠️] Unknown plugin '%s' in PLUGINS, skipping.\n" "$plugin" >&2
         fi
-        printf "%s\n" "${plugin}"
     done
 }
 

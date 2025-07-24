@@ -21,7 +21,7 @@
 
 set -e
 
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.2.2"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.2.3"}"
 
 : <<=cut
 =head1 NAME
@@ -2322,7 +2322,15 @@ pihole_munin_valid_plugins() {
 pihole_munin_root() {
     if [ "$(id -u)" -ne "0" ]; then
         SUDO_PREFIX="sudo "
-        exec sudo "$(command -v -- "$0")" "$@"
+        case "$0" in
+            /*)
+                script_path="$0"
+            ;;
+            *)
+                script_path="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+            ;;
+        esac
+        exec sudo "$script_path" "$@"
         printf "%s\n" "  [❌] Failed to acquire root privileges." >&2
         exit 1
     else
@@ -2350,7 +2358,6 @@ pihole_munin_header() {
 }
 
 pihole_munin_install() {
-    pihole_munin_root "$@"
     pihole_munin_header
     dry_run="0"
     plugins_to_clean="0"
@@ -2443,7 +2450,6 @@ pihole_munin_install() {
 }
 
 pihole_munin_uninstall() {
-    pihole_munin_root "$@"
     pihole_munin_header
     dry_run="0"
     for option in "$@"; do
@@ -2584,7 +2590,6 @@ pihole_munin_validate_input_plugins() {
 }
 
 pihole_munin_configure() {
-    pihole_munin_root "$@"
     config_file="${plugins_config}/pihole_munin_"
     [ -n "${PIHOLE_MUNIN_CONF}" ] && config_file="${PIHOLE_MUNIN_CONF}"
     if [ ! -f "${config_file}" ]; then
@@ -2607,7 +2612,7 @@ pihole_munin_configure() {
                     list_masked=$(printf '%*s' "${list_len}" '' | tr ' ' '*')
                     printf "%s%s\n" "       ${list_var}" " ${list_masked}"
                 else
-                    printf "%s\n" "       ${config_line}"
+                    printf "%s\n" "   ${config_line}"
                 fi
             done
             printf "\n%s\n" "  [✅] Success."
@@ -2679,16 +2684,20 @@ pihole_munin_configure() {
             case "${add_var}" in
                 "user"|"group")
                     add_entry="    ${add_var} ${add_val}"
-                    pihole_munin_safe_write sed "/^ *${add_var}\s/d" "${config_file}" > "${config_file}.tmp"
+                    tmpfile="$(mktemp /tmp/pihole_munin_conf.XXXXXX)" || { printf "%s\n" "  [❌] Failed to create temp file." >&2; exit 1; }
+                    pihole_munin_safe_write sed "/^ *${add_var}\s/d" "${config_file}" > "${tmpfile}"
                 ;;
                 *)
                     add_entry="    env.${add_var} ${add_val}"
-                    pihole_munin_safe_write sed "/^ *env\.${add_var}\s/d" "${config_file}" > "${config_file}.tmp"
+                    tmpfile="$(mktemp /tmp/pihole_munin_conf.XXXXXX)" || { printf "%s\n" "  [❌] Failed to create temp file." >&2; exit 1; }
+                    pihole_munin_safe_write sed "/^ *env\.${add_var}\s/d" "${config_file}" > "${tmpfile}"
                 ;;
             esac
-            pihole_munin_safe_write printf "%s\n" "${add_entry}" >> "${config_file}.tmp"
-            pihole_munin_safe_move "${config_file}.tmp" "${config_file}"
-            printf "\n%s\n" "  [✅] Success."
+            pihole_munin_safe_write printf "%s\n" "${add_entry}" >> "${tmpfile}"
+            pihole_munin_safe_move mv "${tmpfile}" "${config_file}"
+            printf "%s\n\n%s\n" \
+                "       ${add_var}" \
+                "  [✅] Success."
         ;;
         "remove")
             [ -z "${1}" ] && { printf "  [❌] No variable specified for removal.\n" >&2; exit 1; }
@@ -2707,9 +2716,12 @@ pihole_munin_configure() {
                 ;;
             esac
             if grep -Eq "${pattern}" "${config_file}"; then
-                pihole_munin_safe_write sed "/${pattern}/d" "${config_file}" > "${config_file}.tmp"
-                pihole_munin_safe_move "${config_file}.tmp" "${config_file}"
-                printf "\n%s\n" "  [✅] Success."
+                tmpfile="$(mktemp /tmp/pihole_munin_conf.XXXXXX)" || { printf "%s\n" "  [❌] Failed to create temp file." >&2; exit 1; }
+                pihole_munin_safe_write sed "/${pattern}/d" "${config_file}" > "${tmpfile}"
+                pihole_munin_safe_move mv "${tmpfile}" "${config_file}"
+                printf "%s\n\n%s\n" \
+                    "       ${remove_var}" \
+                    "  [✅] Success."
             else
                 printf "\n%s\n\n" "  [⚠️] Variable '${remove_var}' not found in '${config_file}'."
             fi
@@ -2772,7 +2784,6 @@ pihole_munin_version() {
 datetime_timestamp=$(date +%Y-%m-%d-%H:%M:%S)
 
 pihole_munin_update() {
-    pihole_munin_root "$@"
     pihole_munin_header
     repo_url="github.com/saint-lascivious/pihole_munin_"
     raw_url="https://${repo_url}/raw/master/pihole_munin_"
@@ -2918,7 +2929,6 @@ pihole_munin_test() {
         printf "%s\n" "  [❌] munin-run command not found." >&2
         exit 1
     fi
-    pihole_munin_root "$@"
     pihole_munin_header
     dry_run="0"
     verbose="0"
@@ -3204,8 +3214,31 @@ fi
 case "${1}" in
     "-a"|"admin"|"--admin")
         case "${2}" in
+            "-A"|"add"|"--add"|"-l"|"list"|"--list"|"-p"|"password"|"--password"|"-r"|"remove"|"--remove")
+                pihole_munin_root "$@"
+            ;;
+            "-i"|"install"|"--install")
+                pihole_munin_root "$@"
+            ;;
+            "-u"|"uninstall"|"--uninstall")
+                pihole_munin_root "$@"
+            ;;
+            "-U"|"update"|"--update")
+                pihole_munin_root "$@"
+            ;;
+        esac
+    ;;
+    "setpassword"|"-t"|"test"|"--test-plugins")
+        pihole_munin_root "$@"
+    ;;
+esac
+
+case "${1}" in
+    "-a"|"admin"|"--admin")
+        case "${2}" in
             "-A"|"add"|"--add")
-                pihole_munin_configure "${2}" "$@"
+                shift 2
+                pihole_munin_configure "add" "$@"
             ;;
             "-i"|"install"|"--install")
                 pihole_munin_install "$@"
@@ -3214,10 +3247,12 @@ case "${1}" in
                 pihole_munin_configure "list"
             ;;
             "-p"|"password"|"--password")
-                pihole_munin_configure "add" "pihole_password" "${3:-}"
+                shift 2
+                pihole_munin_configure "add" "pihole_password" "$@"
             ;;
             "-r"|"remove"|"--remove")
-                pihole_munin_configure "${2}" "${3}"
+                shift 2
+                pihole_munin_configure "remove" "$@"
             ;;
             "-u"|"uninstall"|"--uninstall")
                 pihole_munin_uninstall "$@"

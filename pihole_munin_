@@ -21,7 +21,7 @@
 
 set -e
 
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.2.3"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.2.4"}"
 
 : <<=cut
 =head1 NAME
@@ -68,13 +68,14 @@ This is a wildcard plugin.
   replies_by_type: Shows Pi-hole's replies by record type
   status: Shows Pi-hole's blocking status
   unique: Shows the number of unique domains queried
+
   upstreams: Shows the number of queries sent to each upstream DNS server
 
 Note: The 'upstreams' plugin is not enabled at this time, it marks the deviation from solely anonymouse usage statistics to requiring the long term query database to be enabled with a lower privacy level.
 
 =head1 USAGE
 
-Use the 'admin' command to automatically install pihole_munin_ and enable all plugins at once.
+Use the 'admin' command to automatically install pihole_munin_ and enable all plugins.
 
 E.g.
 
@@ -149,26 +150,29 @@ and then,
 Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
   [pihole_munin_*]
-      ### API AUTHENTICATION ###
+      ### AUTHENTICATION ###
 
       #### APPLICATION PASSWORD ####
 
       # A Pi-hole application password may be used to authenticate with the
       # Pi-hole API, this password differs from the web interface password.
+
       # Example:
       #   env.app_password APP_PASSWORD_HERE
 
       #### PI-HOLE PASSWORD ####
 
       # The Pi-hole password may also, but probably shouldn't, be used.
+
       # Example:
       #   env.pihole_password PIHOLE_PASSWORD_HERE
 
       #### CLI PASSWORD ####
 
       # The path at which Pi-hole's CLI password may be found.
-      # If found and readable, this password will be used to authenticate with
-      # the Pi-hole API if no other password is provided.
+
+      # If found and readable, this password will be used to authenticate
+      # with the Pi-hole API if no other password is provided.
       env.cli_password /etc/pihole/cli_pw
 
       ### API ###
@@ -207,7 +211,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # The alert_type is either crit or warn, for critical and warning alerts
       # respectively.
-    
+
       # The format for values is either a single value which represents the
       # maximum value before an alert is triggered, or a range of values 
       # separated by a colon, where an alert will be triggered if the value
@@ -242,7 +246,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       env.unique_unique_domains_crit 1:10000
       env.unique_unique_domains_warn 0:5000
 
-      ### PLUGIN SELECTION ###
+      ### PLUGINS ###
 
       # cache: Shows Pi-hole's cache
       # cache_by_type: Shows Pi-hole's cached records by type
@@ -261,6 +265,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # replies_by_type: Shows Pi-hole's replies by record type
       # status: Shows Pi-hole's blocking status
       # unique: Shows the number of unique domains queried
+
       # upstreams: Shows the number of queries sent to each upstream DNS server
 
       # Note: The 'upstreams' plugin is not enabled at this time, it marks the
@@ -268,23 +273,20 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # query database to be enabled with a lower privacy level.
 
       # You can override which plugins are enabled by setting the 'plugins' variable.
-      #
-      # To enable only a subset, set:
-      #   env.plugins cache clients queries
-      #
+
       # Invalid plugin names will be skipped with a warning.
-      #
+
       # Example:
       #   env.plugins cache clients queries
-      #
-      # Note: This affects the 'install', 'uninstall', and 'test' commands
+
+      # Note: This affects the 'install', 'test' and 'uninstall' commands
       # if executed via 'munin-run'.
-      #
+
       # This is somewhat spooky, and ideally should be avoided.
-      #
+
       # Use the PLUGINS environment variable to govern the list of plugins selected
       # for installation, uninstallation, and testing.
-      #
+
       # Example:
       #   PLUGINS="cache clients queries" ./pihole_munin_ admin install
 
@@ -316,7 +318,6 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   gravity: --lower-limit 0
       #   overview: --lower-limit 0
       #   percent: --upper-limit 100 --lower-limit 0
-      #    
       #   privacy: --upper-limit 3 --lower-limit 0
       #   queries: --lower-limit 0
       #   queries_by_status: --lower-limit 0
@@ -376,6 +377,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   unique: This graph shows the number of unique domains queried
       #   upstreams: This graph shows the number of queries sent to each
       #     upstream DNS server
+
       # The default graph information may be overidden by setting the
       # graph_info_<plugin> variable to the desired information.
 
@@ -718,7 +720,16 @@ saint-lascivious (Hayden Pearce), 2025
 GNU GPLv3
 =cut
 
-pihole_munin_plugin_id="$(printf "%s" "${0}" | sed -e 's/^.*pihole_munin_//')"
+case "${0}" in
+    /*)
+        script_path="${0}"
+    ;;
+    *)
+        script_path="$(cd "$(dirname "${0}")" && pwd)/$(basename "${0}")"
+    ;;
+esac
+
+pihole_munin_plugin_id="$(printf "%s" "${script_path}" | sed -e 's/^.*pihole_munin_//')"
 
 if [ -z "${pihole_munin_plugin_id}" ]; then
     pihole_munin_plugin_id="percent"
@@ -732,7 +743,9 @@ is_localhost="0"
 
 cli_password="${cli_password:-/etc/pihole/cli_pw}"
 
-if [ -t 1 ] && [ -n "${TERM}" ] && [ "${TERM}" != "dumb" ]; then
+use_colour="${USE_COLOUR:-1}"
+
+if [ "${use_colour}" = "1" ] && [ -t 1 ] && [ -n "${TERM}" ] && [ "${TERM}" != "dumb" ]; then
     TEXT_RED='\033[38;5;196m'
     TEXT_ORANGE='\033[38;5;208m'
     TEXT_YELLOW='\033[38;5;226m'
@@ -740,11 +753,8 @@ if [ -t 1 ] && [ -n "${TERM}" ] && [ "${TERM}" != "dumb" ]; then
     TEXT_GREEN='\033[38;5;2m'
     TEXT_LIGHTBLUE='\033[38;5;39m'
     TEXT_BLUE='\033[38;5;21m'
-    #TEXT_INDIGO='\033[38;5;54m'
-    TEXT_VIOLET='\033[38;5;93m'
-    TEXT_MAGENTA='\033[38;5;201m'
-    TEXT_PINK='\033[38;5;213m'
-    #TEXT_WHITE='\033[38;5;15m'
+    TEXT_INDIGO='\033[38;5;93m'
+    TEXT_VIOLET='\033[38;5;201m'
     TEXT_RESET='\033[0m'
 else
     TEXT_RED=''
@@ -754,11 +764,8 @@ else
     TEXT_GREEN=''
     TEXT_LIGHTBLUE=''
     TEXT_BLUE=''
-    #TEXT_INDIGO=''
+    TEXT_INDIGO=''
     TEXT_VIOLET=''
-    TEXT_MAGENTA=''
-    TEXT_PINK=''
-    #TEXT_WHITE=''
     TEXT_RESET=''
 fi
 
@@ -946,12 +953,14 @@ session_cache="${SESSION_CACHE:-0}"
 
 seconds_timestamp=$(date +%s)
 
+pihole_munin_plugstate="${PIHOLE_MUNIN_PLUGSTATE:-${MUNIN_PLUGSTATE:-/tmp}}"
+
 pihole_munin_auth() {
-    session_file="${MUNIN_PLUGSTATE:-/tmp}/pihole_session.state"
-    if [ "${session_cache}" -eq "1" ] && [ -r "${session_file}" ]; then
-        session_time=$(head -n 1 "${session_file}")
+    pihole_munin_session_file="${pihole_munin_plugstate}/pihole_session.state"
+    if [ "${session_cache}" -eq "1" ] && [ -r "${pihole_munin_session_file}" ]; then
+        session_time=$(head -n 1 "${pihole_munin_session_file}")
         if [ $((seconds_timestamp - session_time)) -lt "${session_ttl:-300}" ]; then
-            sid=$(tail -n 1 "${session_file}")
+            pihole_munin_session_sid=$(tail -n 1 "${pihole_munin_session_file}")
             return 0
         fi
     fi
@@ -966,19 +975,19 @@ pihole_munin_auth() {
         printf "%s\n" "  [❌] Could not get Session ID, response code was '${auth_response_code}'." >&2
         exit 1
     fi
-    sid=$(printf "%s" "${auth_response_json}" | jq -r '.session.sid')
-    if [ -n "${sid}" ] && [ "${session_cache}" -eq "1" ]; then
-        { printf "%s\n%s\n" "${seconds_timestamp}" "${sid}"; } > "${session_file}"
-        chmod 600 "${session_file}"
+    pihole_munin_session_sid=$(printf "%s" "${auth_response_json}" | jq -r '.session.sid')
+    if [ -n "${pihole_munin_session_sid}" ] && [ "${session_cache}" -eq "1" ]; then
+        { printf "%s\n%s\n" "${seconds_timestamp}" "${pihole_munin_session_sid}"; } > "${pihole_munin_session_file}"
+        chmod 600 "${pihole_munin_session_file}"
     fi
 }
 
 pihole_munin_logout() {
-    [ -z "${sid}" ] && return 0
+    [ -z "${pihole_munin_session_sid}" ] && return 0
     [ "${session_cache}" -eq "1" ] && return 0
     logout_code=$(curl --connect-timeout 5 -k -s -S -o - -w "%{response_code}" -X DELETE "${api_target}${auth_url}" \
         -H "Accept: application/json" \
-        -H "sid: ${sid}")
+        -H "sid: ${pihole_munin_session_sid}")
     case "${logout_code}" in
         "200"|"204")
             :
@@ -1017,20 +1026,20 @@ pihole_munin_validate_json() {
 
 pihole_munin_api_url() {
     url="${api_target}${1}"
-    if [ "${auth_required}" -eq "1" ] && [ -n "${sid}" ]; then
+    if [ "${auth_required}" -eq "1" ] && [ -n "${pihole_munin_session_sid}" ]; then
         sep="?"
         case "${url}" in
             *"\?"*)
                 sep="&"
             ;;
         esac
-        url="${url}${sep}sid=${sid}"
+        url="${url}${sep}sid=${pihole_munin_session_sid}"
     fi
     printf "%s" "${url}"
 }
 
 pihole_munin_state_handler() {
-    pihole_munin_statefile="${MUNIN_PLUGSTATE:-/tmp}/$(printf "%s" "${1}" | sed -E 's/[^a-zA-Z0-9]/_/g').state"
+    pihole_munin_statefile="${pihole_munin_plugstate}/$(printf "%s" "${1}" | sed -E 's/[^a-zA-Z0-9]/_/g').state"
     if [ -f "${pihole_munin_statefile}" ]; then
         state_time=$(head -n 1 "${pihole_munin_statefile}")
         state_ttl="${state_ttl:-240}"
@@ -2305,36 +2314,54 @@ pihole_munin_normalise_plugins() {
 valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status unique"
 plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$valid_plugins}")
 
-pihole_munin_valid_plugins() {
-    for plugin in ${plugins}; do
-        valid_found="0"
-        for valid in ${valid_plugins}; do
-            [ "${plugin}" = "${valid}" ] && valid_found="1" && break
+pihole_munin_suggest() {
+    for plugin in $plugins; do
+        printf "%s\n" "${plugin}"
+    done
+}
+
+pihole_munin_filter_valid_plugins() {
+    input_plugin_list="${1}"
+    warn_unknown="${2}"
+    filtered_plugins=""
+    for candidate_plugin in ${input_plugin_list}; do
+        is_valid_plugin="0"
+        for known_plugin in ${valid_plugins}; do
+            if [ "${candidate_plugin}" = "${known_plugin}" ]; then
+                is_valid_plugin="1"
+                break
+            fi
         done
-        if [ "$valid_found" -eq "1" ]; then
-            printf "%s\n" "${plugin}"
-        else
-            printf "  [⚠️] Unknown plugin '%s' in PLUGINS, skipping.\n" "${plugin}" >&2
+        if [ "${is_valid_plugin}" -eq "1" ]; then
+            filtered_plugins="${filtered_plugins} ${candidate_plugin}"
+        elif [ "${warn_unknown}" = "warn" ]; then
+            printf "  [⚠️] Unknown plugin '%s', skipping.\n" "${candidate_plugin}" >&2
         fi
     done
+    printf "%s\n" "$(printf '%s' "${filtered_plugins}" | sed 's/^ *//;s/ *$//')"
+}
+
+pihole_munin_valid_plugins() {
+    pihole_munin_filter_valid_plugins "$plugins" "warn"
+}
+
+pihole_munin_validate_input_plugins() {
+    input_plugins=$(pihole_munin_normalise_plugins "$1")
+    pihole_munin_filter_valid_plugins "$input_plugins" "warn"
 }
 
 pihole_munin_root() {
     if [ "$(id -u)" -ne "0" ]; then
-        SUDO_PREFIX="sudo "
-        case "$0" in
-            /*)
-                script_path="$0"
-            ;;
-            *)
-                script_path="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-            ;;
-        esac
-        exec sudo "$script_path" "$@"
-        printf "%s\n" "  [❌] Failed to acquire root privileges." >&2
-        exit 1
-    else
-        SUDO_PREFIX=""
+        if command -v sudo >/dev/null 2>&1; then
+            printf "%s\n" "  [🛡️] Acquiring root privileges..."
+            exec sudo "$(command -v -- "${script_path}")" "$@" || {
+                printf "%s\n" "  [❌] Failed to acquire root privileges." >&2
+                exit 1
+            }
+        else
+            printf "%s\n" "  [❌] 'sudo' command not found." >&2
+            exit 1
+        fi
     fi
 }
 
@@ -2353,21 +2380,42 @@ pihole_munin_header() {
         "${TEXT_GREEN_HEADER}  | |_) || || | | || (_) || ||  __/ __ | | | | | || |_| || | | || || | | | __${TEXT_RESET}" \
         "${TEXT_LIGHTBLUE}  | .__/ |_||_| |_| \\___/ |_| \\___||__||_| |_| |_| \\__,_||_| |_||_||_| |_||__|${TEXT_RESET}" \
         "${TEXT_BLUE}  |_|${TEXT_RESET}" \
-        "  [📦] ${TEXT_VIOLET}pihole_munin_ ${pihole_munin_version}${TEXT_RESET}" \
-        "  [⏱️] ${TEXT_MAGENTA}${rfc3339_timestamp}${TEXT_RESET}"
+        "  [📦] ${TEXT_INDIGO}Version: ${pihole_munin_version}${TEXT_RESET}" \
+        "  [⏱️] ${TEXT_VIOLET}Date: ${rfc3339_timestamp}${TEXT_RESET}"
+}
+
+parse_install_args() {
+    dry_run="0"
+    plugins_arg=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            "-D"|"dry"|"--dry-run")
+                dry_run="1"
+                ;;
+            *)
+                plugins_arg="${plugins_arg} $1"
+                ;;
+        esac
+        shift
+    done
+    plugins_arg=$(printf '%s' "${plugins_arg}" | sed 's/^ *//;s/ *$//')
+    if [ -n "${plugins_arg}" ]; then
+        plugins=$(pihole_munin_validate_input_plugins "${plugins_arg}")
+        plugins=$(printf '%s' "${plugins}" | sed 's/^ *//;s/ *$//')
+        [ -z "${plugins}" ] && {
+            printf "%s\n" "  [❌] No valid plugins specified." >&2
+            exit 1
+        }
+    else
+        plugins=$(pihole_munin_valid_plugins)
+    fi
 }
 
 pihole_munin_install() {
     pihole_munin_header
-    dry_run="0"
+    shift 2
+    parse_install_args "$@"
     plugins_to_clean="0"
-    for option in "$@"; do
-        case "${option}" in
-            "-D"|"dry"|"--dry-run")
-                dry_run="1"
-            ;;
-        esac
-    done
     printf "  %s Checking required directories...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[🗂️]" || printf "[🗂️] (DRY RUN)")"
     required_dirs="${plugins_available} ${plugins_enabled} ${plugins_config}"
@@ -2383,7 +2431,7 @@ pihole_munin_install() {
     printf "  %s Installing pihole_munin_...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[🟢]" || printf "[🟢] (DRY RUN)")"
     if [ "${dry_run}" -eq "0" ]; then
-        cp -f "${0}" "${pihole_munin_path}" || {
+        cp -f "${script_path}" "${pihole_munin_path}" || {
             printf "%s\n" "  [❌] Failed to copy plugin." >&2
             exit 1
         }
@@ -2402,10 +2450,9 @@ pihole_munin_install() {
         break
     done
     if [ "$plugins_to_clean" -eq 1 ]; then
-        printf "\n  %s %bCleaning plugin directory...%b\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )" \
-            "${TEXT_PINK}" "${TEXT_RESET}"
-            for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
+        printf "\n  %s Cleaning plugin directory...\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
+        for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
             [ ! -e "${plugin_to_clean}" ] && continue
             [ "${plugin_to_clean}" = "${plugins_enabled}/pihole_munin_" ] && continue
             printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugin_to_clean}${TEXT_RESET}"
@@ -2421,7 +2468,7 @@ pihole_munin_install() {
     fi
     printf "\n  %s Enabling pihole_munin_ plugins...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[🟢]" || printf "[🟢] (DRY RUN)" )"
-    for plugin in $(pihole_munin_valid_plugins); do
+    for plugin in ${plugins}; do
         if [ "${dry_run}" -eq "0" ]; then
             ln -sf "${pihole_munin_path}" "${plugins_enabled}/pihole_munin_${plugin}" || {
                 printf "%s\n" "  [❌] Failed to create symlink '${plugins_enabled}/pihole_munin_${plugin}'." >&2
@@ -2435,22 +2482,29 @@ pihole_munin_install() {
             "  [✅] Success." \
             "  [ℹ️] Please restart the Munin node." \
             "  Example:" \
-            "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ ${SUDO_PREFIX}systemctl restart munin-node.service"
+            "    ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ systemctl restart munin-node.service"
         if ! printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
-            printf "\n%s\n%s\n\n%s\n%b\n%s\n" \
+            printf "%s\n%s\n\n%s\n%b\n\n%s\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
                 "  [ℹ️] You can add '${pihole_munin_path}'" \
                 "       to your \$PATH to run the pihole_munin_ as a regular command." \
                 "  Example:" \
-                "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ export \\" \
-                "        PATH=\"\$PATH:${pihole_munin_path}\""
+                "  ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ export PATH=\"\$PATH:${pihole_munin_path}\"" \
+                "       This will only last until you close your terminal." \
+                "       To add it permanently, add the following line to your shell profile" \
+                "       (e.g. ~/.bashrc or ~/.profile)." \
+                "  export PATH=\"\$PATH:${pihole_munin_path}\"" \
+                "       Then restart your terminal or source the file." \
+                "  Example:" \
+                "  ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ source ~/.bashrc" \
+                "       This will add pihole_munin_ to your \$PATH in all future terminal" \
+                "       sessions."
         fi
     else
         printf "\n%s\n" "  [✅] (DRY RUN) Success."
     fi
 }
 
-pihole_munin_uninstall() {
-    pihole_munin_header
+pihole_munin_flush() {
     dry_run="0"
     for option in "$@"; do
         case "${option}" in
@@ -2459,13 +2513,41 @@ pihole_munin_uninstall() {
             ;;
         esac
     done
+    if [ ! -d "${pihole_munin_plugstate}" ]; then
+        printf "%s\n" "  [❌] Missing directory '${pihole_munin_plugstate}'." >&2
+        exit 1
+    fi
+    statefiles=$(find "${pihole_munin_plugstate}" -maxdepth 1 -type f -name '*.state' 2>/dev/null)
+    if [ -z "${statefiles}" ]; then
+        printf "%s\n" "  [ℹ️] No state files to flush in '${pihole_munin_plugstate}'."
+        return 0
+    fi
+    printf "\n  %s Flushing plugin state directory...\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
+    for statefile_to_flush in ${statefiles}; do
+        printf "%b\n" "       ${statefile_to_flush}"
+        if [ "$dry_run" -eq "0" ]; then
+            rm -f "${statefile_to_flush}" || {
+                printf "%s\n" "  [❌] Failed to remove statefile '${statefile_to_flush}'" >&2
+                exit 1
+            }
+        fi
+    done
+    printf "\n  %s Success.\n" \
+        "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+}
+
+pihole_munin_uninstall() {
+    pihole_munin_header
+    shift 2
+    parse_install_args "$@"
     printf "  %s Disabling pihole_munin_ plugins...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[🔴]" || printf "[🔴] (DRY RUN)" )"
     [ -d "${plugins_enabled}" ] || {
         printf "%s\n" "  [❌] Missing directory '${plugins_enabled}'." >&2
         exit 1
     }
-    for plugin in $(pihole_munin_valid_plugins); do
+    for plugin in ${plugins}; do
         if [ -L "${plugins_enabled}/pihole_munin_${plugin}" ]; then
             if [ "${dry_run}" -eq "0" ]; then
                 rm -f "${plugins_enabled}/pihole_munin_${plugin}" || {
@@ -2501,14 +2583,16 @@ pihole_munin_uninstall() {
             "       ${TEXT_GREEN}${pihole_munin_path}${TEXT_RESET}" \
             "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
         if printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
-            printf "%s\n%s\n\n%s\n%b\n%s\n%s\n%s\n" \
+            printf "%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n" \
                 "  [⚠️] Your \$PATH contains '${pihole_munin_path}'." \
-                "       You may wish to remove it now that pihole_munin_ is uninstalled." \
+                "       To remove it permanently, edit your shell profile" \
+                "       (e.g. ~/.bashrc or ~/.profile) and remove any line that adds" \
+                "       '${pihole_munin_path}' to your \$PATH." \
+                "       Then restart your terminal or source the file." \
                 "  Example:" \
-                "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ export PATH=\$(echo \"\$PATH\" | \\" \
-                "        sed -e 's;:${pihole_munin_path};;g' \\" \
-                "            -e 's;${pihole_munin_path}:;;g' \\" \
-                "            -e 's;${pihole_munin_path};;g')"
+                "  ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ source ~/.bashrc" \
+                "       This will remove pihole_munin_ from your \$PATH in all future terminal" \
+                "       sessions."
         fi
     else
         printf "%s\n%s\n" \
@@ -2572,21 +2656,6 @@ pihole_munin_safe_prompt() {
         printf "%s\n" "  [❌] Entered values do not match." >&2
         return 1
     fi
-}
-
-pihole_munin_validate_input_plugins() {
-    input_plugins=$(pihole_munin_normalise_plugins "${1}")
-    for plugin in ${input_plugins}; do
-        plugins_found="0"
-        for valid in ${valid_plugins}; do
-            [ "${plugin}" = "${valid}" ] && plugins_found="1" && break
-        done
-        if [ "${plugins_found}" -eq "1" ]; then
-            printf "%s " "${plugin}"
-        else
-            printf "  [⚠️] Unknown plugin '%s' in PLUGINS, skipping.\n" "${plugin}" >&2
-        fi
-    done
 }
 
 pihole_munin_configure() {
@@ -2764,12 +2833,12 @@ pihole_munin_version() {
         remote_version=$(dig +short TXT pihole-munin.sainternet.xyz | sed -e 's/[^.0-9]//g')
         printf "\n%s\n" "  [🔄] Checking for updates..."
         if [ -n "${remote_version}" ]; then
-            printf "%s\n" "       ${remote_version}"
             if pihole_munin_check "${remote_version}" "${pihole_munin_version}"; then
-                printf "\n%s\n\n%s\n%s\n" \
-                "       A newer version is available: ${remote_version}" \
-                "  [ℹ️] Run '${0} admin update' to update the plugin, or run" \
-                "       '${0} help admin update' for more information."
+                printf "%s\n\n%s\n\n%s\n%s\n" \
+                "       ${remote_version}" \
+                "  [🆕] A newer version is available." \
+                "  [ℹ️] Run '${script_path} admin update' to update the plugin, or run" \
+                "       '${script_path} help admin update' for more information."
             else
                 printf "\n%s\n\n%s\n" "  [✅] Success." \
                     "  [ℹ️] You are using the latest version."
@@ -2874,7 +2943,7 @@ pihole_munin_update() {
                 rm -f "${tmp_file}"
                 exit 0
             else
-                printf "\n%s\n" "  [ℹ️] A newer version is available."
+                printf "\n%s\n" "  [🆕] A newer version is available."
             fi
         fi
         printf "\n  %s\n" "%s Backing up '${pihole_munin_path}'..." \
@@ -2890,7 +2959,7 @@ pihole_munin_update() {
                 "  [✅] Success." \
                 "  [ℹ️] You can restore this backup at any time." \
                 "  Example:" \
-                "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ ${SUDO_PREFIX}cp -f ${bak_file} ${pihole_munin_path}"
+                "    ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ cp -f ${bak_file} ${pihole_munin_path}"
         else
             printf "%s\n\n%s\n" \
                 "       ${bak_file}" \
@@ -2913,7 +2982,7 @@ pihole_munin_update() {
                 "  [✅] Success." \
                 "  [ℹ️] Please restart the Munin node." \
                 "  Example:" \
-                "    ${TEXT_GREEN}saint@sainternet.xyz${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ ${SUDO_PREFIX}systemctl restart munin-node.service"
+                "    ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ systemctl restart munin-node.service"
         else
             printf "\n%s\n" "  [✅] (DRY RUN) Success."
         fi
@@ -2926,7 +2995,7 @@ pihole_munin_update() {
 
 pihole_munin_test() {
     if ! command -v munin-run >/dev/null 2>&1; then
-        printf "%s\n" "  [❌] munin-run command not found." >&2
+        printf "%s\n" "  [❌] 'munin-run' command not found." >&2
         exit 1
     fi
     pihole_munin_header
@@ -2993,76 +3062,80 @@ pihole_munin_help() {
             case "${2}" in
                 "-A"|"add"|"--add")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
-                        "  [❓] ${0} ${1} ${2} <var> [<val>]" \
+                        "  [❓] ${script_path} ${1} ${2} <var> [<val>]" \
                         "       Add or update a plugin configuration variable." \
                         "       Variables SHOULD be entered without the env. prefix, and values SHOULD be" \
                         "       without encapsulating quotation." \
                         "  [ℹ️] You will be prompted to enter the value securely if it is sensitive" \
                         "       (e.g. app_password or pihole_password)." \
                         "  Examples:" \
-                        "    ${0} ${1} ${2} host 192.168.1.10" \
-                        "    ${0} ${1} ${2} user pihole"
+                        "    ${script_path} ${1} ${2} host 192.168.1.10" \
+                        "    ${script_path} ${1} ${2} user pihole"
                 ;;
                 "-i"|"install"|"--install")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
-                        "  [❓] ${0} ${1} ${2} [<option>]" \
-                        "       Install pihole_munin_ and enable all plugins." \
-                        "  [ℹ️] This command will install pihole_munin_ and enable all pihole_munin_" \
-                        "       plugins." \
+                    printf "%s\n\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
+                        "  [❓] ${script_path} ${1} ${2} [<plugin> ...] [<option>]" \
+                        "       Install pihole_munin_ and enable plugins." \
+                        "  [ℹ️] This command will install pihole_munin_ and enable the specified plugins." \
+                        "       If no plugins are specified, all valid plugins will be enabled." \
                         "  Options:" \
                         "    -D, dry, --dry-run         Show what would be done, without making any changes." \
-                        "  Example:" \
-                        "    ${0} ${1} ${2} --dry-run"
+                        "  Examples:" \
+                        "    ${script_path} ${1} ${2} --dry-run" \
+                        "    ${script_path} ${1} ${2} cache clients" \
+                        "    ${script_path} ${1} ${2} cache clients --dry-run"
                 ;;
                 "-l"|"list"|"--list")
                     printf "%s\n\n%s\n\n%s\n" \
-                        "  [❓] ${0} ${1} ${2}" \
+                        "  [❓] ${script_path} ${1} ${2}" \
                         "       List all configured plugin variables." \
                         "  [ℹ️] Sensitive variables (e.g. passwords) will be masked."
                 ;;
                 "-p"|"password"|"--password")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
-                        "  [❓] ${0} ${1} ${2} [<password>]" \
+                        "  [❓] ${script_path} ${1} ${2} [<password>]" \
                         "       Set the Pi-hole password." \
                         "  [ℹ️] This command will add or update the pihole_password variable in the" \
                         "       plugin configuration file." \
                         "  Examples:" \
-                        "    ${0} ${1} ${2} mysecretpassword" \
-                        "    ${0} ${1} ${2} nopassword"
+                        "    ${script_path} ${1} ${2} mysecretpassword" \
+                        "    ${script_path} ${1} ${2} nopassword"
                 ;;
                 "-r"|"remove"|"--remove")
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n" \
-                        "  [❓] ${0} ${1} ${2} <var>" \
+                        "  [❓] ${script_path} ${1} ${2} <var>" \
                         "       Remove a variable from the plugin configuration." \
                         "  Examples:" \
-                        "    ${0} ${1} ${2} host" \
-                        "    ${0} ${1} ${2} user"
+                        "    ${script_path} ${1} ${2} host" \
+                        "    ${script_path} ${1} ${2} user"
                 ;;
                 "-u"|"uninstall"|"--uninstall")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
-                        "  [❓] ${0} ${1} ${2} [<option>]" \
-                        "       Disable all plugins and uninstall pihole_munin_." \
-                        "  [ℹ️] This command will remove all pihole_munin_ plugins from the Munin node" \
-                        "       and uninstall the plugin itself." \
+                    printf "%s\n\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
+                        "  [❓] ${script_path} ${1} ${2} [<plugin> ...] [<option>]" \
+                        "       Disable plugins and uninstall pihole_munin_." \
+                        "  [ℹ️] This command will remove the specified plugins from the Munin node." \
+                        "       If no plugins are specified, all valid plugins will be removed and the plugin itself uninstalled." \
                         "  Options:" \
                         "    -D, dry, --dry-run         Show what would be done, without making any changes." \
-                        "  Example:" \
-                        "    ${0} ${1} ${2} --dry-run"
+                        "  Examples:" \
+                        "    ${script_path} ${1} ${2} --dry-run" \
+                        "    ${script_path} ${1} ${2} cache clients" \
+                        "    ${script_path} ${1} ${2} cache clients --dry-run"
                 ;;
                 "-U"|"update"|"--update")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
-                        "  [❓] ${0} ${1} ${2} [<option>]" \
+                        "  [❓] ${script_path} ${1} ${2} [<option>]" \
                         "       Update pihole_munin_ to the latest version." \
                         "  [ℹ️] This command will download the latest version from the GitHub repository" \
                         "       and replace the current script." \
                         "  Options:" \
                         "    -D, dry, --dry-run         Show what would be done, without making any changes." \
                         "  Example:" \
-                        "    ${0} ${1} ${2} --dry-run"
+                        "    ${script_path} ${1} ${2} --dry-run"
                 ;;
                 "" )
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
-                        "  [❓] ${0} ${1} <subcommand>" \
+                        "  [❓] ${script_path} ${1} <subcommand>" \
                         "       Manage plugin configuration and installation." \
                         "  Subcommands:" \
                         "    -A, add                    Add or update a plugin configuration variable." \
@@ -3072,18 +3145,18 @@ pihole_munin_help() {
                         "    -r, remove                 Remove a variable from the plugin config." \
                         "    -u, uninstall, --uninstall Disable all plugins and uninstall pihole_munin_." \
                         "    -U, update                 Update pihole_munin_ to the latest version." \
-                        "  [ℹ️] Run '${0} help admin <subcommand>' for more information on a subcommand."
+                        "  [ℹ️] Run '${script_path} help admin <subcommand>' for more information on a subcommand."
                 ;;
                 * )
                     printf "%s\n\n%s\n" \
                         "  [⚠️] Unknown ${1} subcommand '${2}'" \
-                        "  [ℹ️] Run '${0} help admin' for a list of available subcommands."
+                        "  [ℹ️] Run '${script_path} help admin' for a list of available subcommands."
                 ;;
             esac
         ;;
         "autoconf")
             printf "%s\n\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n\n%s\n%s\n%s\n" \
-                "  [❓] ${0} ${1}" \
+                "  [❓] ${script_path} ${1}" \
                 "       A plugin with a capabilities=autoconf magic marker will first be invoked" \
                 "       with autoconf as the sole argument. When invoked thus the plugin should" \
                 "       do one of these two:" \
@@ -3096,40 +3169,51 @@ pihole_munin_help() {
         ;;
         "config")
             printf "%s\n\n%s\n\n%s\n\n%s\n" \
-                "  [❓] ${0} ${1}" \
+                "  [❓] ${script_path} ${1}" \
                 "       The config output describes the plugin and the graph it creates." \
                 "       The full set of attributes you can use is found in the config reference." \
                 "       https://guide.munin-monitoring.org/en/master/reference/plugin.html" \
         ;;
         "fetch")
             printf "%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n" \
-                "  [❓] ${0} ${1}" \
+                "  [❓] ${script_path} ${1}" \
                 "       When the node receives a fetch command for a plugin, the plugin is" \
                 "       invoked without any arguments on the command line and is expected to" \
                 "       emit one or more 'field.value' attribute values." \
                 "       One for each thing the plugin observes as defined by the config output." \
                 "       Plotting of graphs may be disabled by the config output."
         ;;
+        "-f"|"flush"|"--flush-state")
+            printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
+                "  [❓] ${script_path} ${1} [<option>]" \
+                "       Flush the plugin state files." \
+                "       This command will remove all cached data for the plugin, forcing a fresh" \
+                "       fetch on the next run." \
+                "  Options:" \
+                "    -D, dry, --dry-run         Show what would be done, without making any changes." \
+                "  Example:" \
+                "    ${script_path} ${1} --dry-run"
+        ;;
         "-h"|"help"|"--help")
             printf "%s\n\n%s\n\n%s\n%s\n" \
-                "  [❓] ${0} ${1} <command> [<subcommand>]" \
+                "  [❓] ${script_path} ${1} <command> [<subcommand>]" \
                 "       Displays general or detailed help for commands and subcommands." \
                 "  Example:" \
-                "    ${0} ${1} admin add"
+                "    ${script_path} ${1} admin add"
         ;;
         "setpassword")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
-                "  [❓] ${0} ${1} [<password>]" \
+                "  [❓] ${script_path} ${1} [<password>]" \
                 "       Shortcut to set the Pi-hole password." \
                 "  [ℹ️] This command will add or update the pihole_password variable in the" \
                 "       plugin configuration file." \
                 "  Examples:" \
-                "    ${0} ${1} mysecretpassword" \
-                "    ${0} ${1} nopassword"
+                "    ${script_path} ${1} mysecretpassword" \
+                "    ${script_path} ${1} nopassword"
         ;;
         "suggest")
             printf "%s\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n" \
-                "  [❓] ${0} ${1}" \
+                "  [❓] ${script_path} ${1}" \
                 "       Munin creates one graph per plugin." \
                 "       To create many graphs from one plugin, you can write a wildcard plugin." \
                 "       These plugins take one or more bits of configuration from the file name" \
@@ -3140,7 +3224,7 @@ pihole_munin_help() {
         ;;
         "-t"|"test"|"--test-plugins")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n" \
-                "  [❓] ${0} ${1}" \
+                "  [❓] ${script_path} ${1}" \
                 "       Test all pihole_munin_ plugins." \
                 "       This will run the config and fetch commands for each plugin, and report" \
                 "       any errors encountered during the process." \
@@ -3151,36 +3235,37 @@ pihole_munin_help() {
                 "  Note:" \
                 "    Use of '--trace' implies '--verbose' and passes '--debug' to 'munin-run'." \
                 "  Examples:" \
-                "    ${0} ${1} --dry-run" \
-                "    ${0} ${1} --trace" \
-                "    ${0} ${1} --verbose"
+                "    ${script_path} ${1} --dry-run" \
+                "    ${script_path} ${1} --trace" \
+                "    ${script_path} ${1} --verbose"
         ;;
         "-v"|"version"|"--version")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
-                "  [❓] ${0} ${1} [<option>]" \
+                "  [❓] ${script_path} ${1} [<option>]" \
                 "       Display the plugin version string." \
                 "  [ℹ️] If not skipped, a check for a newer version will be performed using a" \
                 "       remote DNS TXT record located at the pihole-munin.sainternet.xyz domain." \
                 "  Options:" \
                 "    -S, skip, --skip-version-check     Skip remote plugin version check." \
                 "  Examples:" \
-                "    ${0} ${1}" \
-                "    ${0} ${1} --skip-version-check"
+                "    ${script_path} ${1}" \
+                "    ${script_path} ${1} --skip-version-check"
         ;;
         "")
-            printf "%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
-                "  [❓] ${0} <command>" \
+            printf "%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
+                "  [❓] ${script_path} <command>" \
                 "  Commands:" \
                 "    -a, admin, --admin         Manage plugin configuration and installation." \
                 "    autoconf                   Check if the plugin can be useful on this host." \
                 "    config                     Generate the plugin configuration." \
                 "    fetch                      Fetch and format the data for Munin to process." \
+                "    -f, flush, --flush-state   Flush the plugin state files." \
                 "    -h, help, --help           Show detailed help information." \
                 "    setpassword                Shortcut to set the Pi-hole password." \
                 "    suggest                    List available plugins." \
                 "    -t, test, --test-plugins   Test all pihole_munin_ plugins." \
                 "    -v, version, --version     Display the plugin version string." \
-                "  [ℹ️] Run '${0} help <command>' for more information on a command."
+                "  [ℹ️] Run '${script_path} help <command>' for more information on a command."
         ;;
         * )
             printf "\n%s\n\n" "  [⚠️] Unknown help topic '$*'."
@@ -3227,6 +3312,9 @@ case "${1}" in
                 pihole_munin_root "$@"
             ;;
         esac
+    ;;
+    "-f"|"flush"|"--flush-state")
+        pihole_munin_root "$@"
     ;;
     "setpassword"|"-t"|"test"|"--test-plugins")
         pihole_munin_root "$@"
@@ -3280,6 +3368,9 @@ case "${1}" in
     "fetch")
         pihole_munin_fetch_handler
     ;;
+    "flush")
+        pihole_munin_flush "$@"
+    ;;
     "-h"|"help"|"--help")
         case "${2}" in
             "")
@@ -3288,7 +3379,7 @@ case "${1}" in
             "-a"|"admin"|"--admin")
                 pihole_munin_help "${2}" "${3:-}"
             ;;
-            "autoconf"|"config"|"fetch"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
+            "autoconf"|"config"|"fetch"|"flush"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
                 pihole_munin_help "${2}"
             ;;
             *)
@@ -3317,5 +3408,12 @@ case "${1}" in
         pihole_munin_help
     ;;
 esac
+
+#    /\_/\  
+#   ( O.O ) 
+#    > ^ < ((
+#   /     \ ))
+#   \\ | / \/
+#   ((_|_) _)
 
 exit 0

@@ -2506,7 +2506,7 @@ pihole_munin_install() {
             "  Example:" \
             "    ${TEXT_GREEN}user@host${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ systemctl restart munin-node.service"
         if ! printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
-            printf "%s\n%s\n\n%s\n%b\n\n%s\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
+            printf "\n%s\n%s\n\n%s\n%b\n\n%s\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
                 "  [ℹ️] You can add '${pihole_munin_path}'" \
                 "       to your \$PATH to run the pihole_munin_ as a regular command." \
                 "  Example:" \

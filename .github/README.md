@@ -62,27 +62,67 @@
 
 ---
 
+## Requirements
+
+- [Munin](http://munin-monitoring.org/)
+    `munin`, `munin-node` (not necessarily on the same host as each other)
+- [Pi-hole](https://pi-hole.net/)
+    Pi-hole ≥ 6.0 (not necessarily on the same host as Munin)
+- [curl](https://curl.se/), [jq](https://jqlang.org/), and [mktemp](https://www.gnu.org/software/coreutils/manual/html_node/mktemp-invocation.html)
+    These are used for API calls, JSON parsing, and temporary file handling.
+
+---
+
 ## Installation
 
 ### Automatic
 
-```sh
-./pihole_munin_ admin install
-```
+1. Fetch the script:
+    ```sh
+    curl -sSL github.com/saint-lascivious/pihole_munin_/raw/master/pihole_munin_ -o pihole_munin_
+    ```
+
+2. Install:
+    ```sh
+    # Make sure the script is executable
+    chmod +x pihole_munin_
+    # Run the install script
+    ./pihole_munin_ install
+    ```
 
 ### Manual
 
-```sh
-sudo mv pihole_munin_ /usr/share/munin/plugins/pihole_munin_
-sudo chmod +x /usr/share/munin/plugins/pihole_munin_
-sudo ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache
-sudo ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache_by_type
-# ...repeat for other plugins as needed
-sudo systemctl restart munin-node.service
-```
+1. Clone this repository:
+    ```sh
+    git clone https://github.com/saint-lascivious/pihole_munin_.git
+    ```
 
-The full list of plugins is:
-`ccache`, `cache_by_type`, `clients`, `dnsmasq`, `domains`, `frequency`, `gravity`, `overview`, `percent`, `privacy`, `queries`, `queries_by_status`, `queries_by_type`, `replies` `replies_by_type`, `status` and `unique`.
+2. Copy `pihole_munin_` to your Munin plugins directory (usually `/usr/share/munin/plugins/`).
+    ```sh
+    # Navigate to the cloned directory
+    cd pihole_munin_
+    # Copy the plugin script to the Munin plugins directory
+    cp pihole_munin_ /usr/share/munin/plugins/
+    # Make sure the script is executable
+    chmod +x /usr/share/munin/plugins/pihole_munin_
+    ```
+
+3. Create symlinks in `/etc/munin/plugins/` for each plugins you wish to enable:
+
+    ```sh
+    ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache
+    ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache_by_type
+    ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_clients
+    # repeat for other plugins as needed
+    ```
+
+    The full list of plugins is:
+    `pihole_munin_cache`, `pihole_munin_cache_by_type`, `pihole_munin_clients`, `pihole_munin_dnsmasq`, `pihole_munin_domains_blocked`, `pihole_munin_gravity`, `pihole_munin_percent_blocked`, `pihole_munin_privacy_level`, `pihole_munin_queries`, `pihole_munin_queries_by_status`, `pihole_munin_replies_by_type`, and `pihole_munin_blocking_status`.
+
+4. Restart the Munin node:
+    ```sh
+    systemctl restart munin-node
+    ```
 
 ---
 
@@ -157,9 +197,15 @@ Documentation for `pihole_munin_` can be found in [the pihole_munin_ wiki](https
 
 ---
 
-## **Compatibility**
-- **Pi-hole Version** Compatible with Pi-hole >= 6.0.
-- **Munin Version** Compatible with Munin >= 2.0.
+## Compatibility
+- Pi-hole Version Compatible with Pi-hole >= 6.0.
+- Munin Version Compatible with Munin >= 2.0.
+
+---
+
+## License
+
+This project is licensed under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html).
 
 ---
 

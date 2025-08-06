@@ -365,7 +365,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   frequency: This graph shows Pi-hole's query frequency
       #   gravity: This graph shows Pi-hole's gravity database statistics
       #   overview: This graph shows an overview of Pi-hole's DNS traffic
-      #   percent: This graph shows Pi-hole's percent blocked query percentage
+      #   percent: This graph shows Pi-hole's blocked query percentage
       #   privacy: This graph shows Pi-hole's privacy level, visit \
       #     https://docs.pi-hole.net/ftldns/privacylevels/ for more information
       #   queries: This graph shows Pi-hole's queries
@@ -385,7 +385,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # The graph_scale value determines whether the graph is scaled to fit the
       # data in Munin's interface.
-      env.graph_scale yes
+      env.graph_scale no
 
       # The graph scaling may be overridden on a per-plugin basis by setting
       # the graph_scale_<plugin> variable to the desired value (yes/no).
@@ -929,7 +929,7 @@ auth_required="1"
 already_authed="0"
 
 pihole_munin_auth_check() {
-    check_response=$(curl --connect-timeout 5 -k -s -w "%{response_code}" "${api_target}${auth_url}")
+    check_response=$(curl --connect-timeout 5 -k -s -L -w "%{response_code}" "${api_target}${auth_url}")
     check_json=$(printf "%s" "${check_response}" | head -c -3)
     check_code=$(printf "%s" "${check_response}" | tail -c 3)
     case "${check_code}" in
@@ -968,7 +968,7 @@ pihole_munin_auth() {
         printf "%s\n" "  [❌] No App Password, Pi-hole Password or CLI Password." >&2
         exit 1
     fi
-    auth_response=$(curl --connect-timeout 5 -k -s -S -o - -w "%{response_code}" "${api_target}${auth_url}" -d "{\"password\":\"${password_to_use}\"}")
+    auth_response=$(curl --connect-timeout 5 -k -s -S -L -o - -w "%{response_code}" "${api_target}${auth_url}" -d "{\"password\":\"${password_to_use}\"}")
     auth_response_json=$(printf "%s" "${auth_response}" | head -c -3)
     auth_response_code=$(printf "%s" "${auth_response}" | tail -c 3)
     if [ "${auth_response_code}" -ne "200" ]; then
@@ -985,7 +985,7 @@ pihole_munin_auth() {
 pihole_munin_logout() {
     [ -z "${pihole_munin_session_sid}" ] && return 0
     [ "${session_cache}" -eq "1" ] && return 0
-    logout_code=$(curl --connect-timeout 5 -k -s -S -o - -w "%{response_code}" -X DELETE "${api_target}${auth_url}" \
+    logout_code=$(curl --connect-timeout 5 -k -s -S -L -o - -w "%{response_code}" -X DELETE "${api_target}${auth_url}" \
         -H "Accept: application/json" \
         -H "sid: ${pihole_munin_session_sid}")
     case "${logout_code}" in
@@ -1060,7 +1060,7 @@ pihole_munin_state_handler() {
         pihole_munin_auth
         did_auth="1"
     fi
-    response=$(curl --connect-timeout 5 -G -k -s "$(pihole_munin_api_url "${1}")") || return 1
+    response=$(curl --connect-timeout 5 -G -k -s -L "$(pihole_munin_api_url "${1}")") || return 1
     if ! printf "%s" "${response}" | pihole_munin_validate_json; then
         return 1
     fi
@@ -1086,7 +1086,7 @@ graph_args="${graph_args:-"--lower-limit 0"}"
 graph_category="${graph_category:-"dns"}"
 graph_draw="${graph_draw:-"LINE1"}"
 graph_height="${graph_height:-"200"}"
-graph_scale="${graph_scale:-"yes"}"
+graph_scale="${graph_scale:-"no"}"
 graph_type="${graph_type:-"GAUGE"}"
 graph_width="${graph_width:-"400"}"
 
@@ -1241,7 +1241,7 @@ pihole_munin_config_clients() {
                     pihole_munin_print \
                         "${clients_key}" \
                         "${clients_active_colour:-}" \
-                        "${clients_active_crit:-"1:50"}" \
+                        "${clients_active_crit:-"100"}" \
                         "${clients_active_draw:-${graph_draw}}" \
                         "${clients_active_graph:-"yes"}" \
                         "${clients_active_info:-"Pi-hole active clients"}" \
@@ -1249,7 +1249,7 @@ pihole_munin_config_clients() {
                         "${clients_active_max:-""}" \
                         "${clients_active_min:-"0"}" \
                         "${clients_active_type:-${graph_type}}" \
-                        "${clients_active_warn:-"100"}"
+                        "${clients_active_warn:-"1:50"}"
                 ;;
                 "total")
                     pihole_munin_print \
@@ -1528,7 +1528,7 @@ pihole_munin_config_percent() {
         "graph_args ${graph_args_percent:-"--upper-limit 100 --lower-limit 0"}" \
         "graph_category ${graph_category_percent:-${graph_category}}" \
         "graph_height ${graph_height_percent:-${graph_height}}" \
-        "graph_info ${graph_info_percent:-"This graph shows Pi-hole's percent blocked query percentage"}" \
+        "graph_info ${graph_info_percent:-"This graph shows Pi-hole's blocked query percentage"}" \
         "graph_scale ${graph_scale_percent:-${graph_scale}}" \
         "graph_title ${graph_title_percent:-"Pi-hole percent blocked"}" \
         "graph_vlabel ${graph_vlabel_percent:-"percent blocked"}" \
@@ -1965,7 +1965,6 @@ pihole_munin_check_dependencies() {
 }
 
 pihole_munin_config_handler() {
-    pihole_munin_check_dependencies || exit 1
     case "${pihole_munin_plugin_id}" in
         "cache")
             pihole_munin_config_cache
@@ -2305,7 +2304,7 @@ pihole_munin_autoconf() {
 }
 
 pihole_munin_normalise_plugins() {
-    printf "%s\n" "$1" \
+    printf "%s\n" "${1}" \
         | sed 's/#.*//;/^[[:space:]]*$/d' \
         | tr ',\n' ' ' \
         | tr -s ' '
@@ -2315,7 +2314,7 @@ valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity ove
 plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$valid_plugins}")
 
 pihole_munin_suggest() {
-    for plugin in $plugins; do
+    for plugin in ${plugins}; do
         printf "%s\n" "${plugin}"
     done
 }
@@ -2346,7 +2345,7 @@ pihole_munin_valid_plugins() {
 }
 
 pihole_munin_validate_input_plugins() {
-    input_plugins=$(pihole_munin_normalise_plugins "$1")
+    input_plugins=$(pihole_munin_normalise_plugins "${1}")
     pihole_munin_filter_valid_plugins "$input_plugins" "warn"
 }
 
@@ -2388,12 +2387,12 @@ parse_install_args() {
     dry_run="0"
     plugins_arg=""
     while [ $# -gt 0 ]; do
-        case "$1" in
+        case "${1}" in
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
                 ;;
             *)
-                plugins_arg="${plugins_arg} $1"
+                plugins_arg="${plugins_arg} ${1}"
                 ;;
         esac
         shift

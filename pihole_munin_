@@ -21,7 +21,7 @@
 
 set -e
 
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.2.4"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.2.5"}"
 
 : <<=cut
 =head1 NAME
@@ -284,8 +284,14 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # This is somewhat spooky, and ideally should be avoided.
 
-      # Use the PLUGINS environment variable to govern the list of plugins selected
-      # for installation, uninstallation, and testing.
+      # Specify the plugins to be installed via the command line when using the
+      # 'admin' command (recommended).
+
+      # Example:
+      #   ./pihole_munin_ admin install cache clients queries
+
+      # Or use the PLUGINS environment variable to govern the plugin list
+      # when using the 'admin' command.
 
       # Example:
       #   PLUGINS="cache clients queries" ./pihole_munin_ admin install
@@ -1919,28 +1925,38 @@ pihole_munin_config_upstreams() {
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
         raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
         raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
-        norm_name=$(printf '%s' "${raw_name}" | sed 's/\./_dot_/g')
-        norm_ip=$(printf '%s' "${raw_ip}" | sed 's/\./_dot_/g')
-        upstream_name="${norm_name}"
-        [ -z "${upstream_name}" ] || [ "${upstream_name}" = "null" ] && upstream_name="${norm_ip}"
-        label=$(printf '%s' "${raw_name:-$ip}")
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+            upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
+        else
+            upstreams_key=$(printf "%s" "${raw_ip}" | tr -c 'a-zA-Z0-9' '_')
+        fi
+        case "${upstreams_key}" in
+            [0-9]*)
+                upstreams_key="upstreams_${upstreams_key}"
+                ;;
+        esac
+        if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+            label="${raw_name}"
             default_info="Pi-hole upstream server ${raw_name} (${raw_ip})"
         else
+            label="${raw_ip}"
             default_info="Pi-hole upstream server ${raw_ip}"
         fi
-        pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstream_name}" "_colour" ""
-        pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstream_name}" "_crit" ""
-        pihole_munin_safe_eval upstreams_draw "upstreams_" "${upstream_name}" "_draw" "${graph_draw}"
-        pihole_munin_safe_eval upstreams_graph "upstreams_" "${upstream_name}" "_graph" "yes"
-        pihole_munin_safe_eval upstreams_info "upstreams_" "${upstream_name}" "_info" "${default_info}"
-        pihole_munin_safe_eval upstreams_label "upstreams_" "${upstream_name}" "_label" "${label}"
-        pihole_munin_safe_eval upstreams_max "upstreams_" "${upstream_name}" "_max" ""
-        pihole_munin_safe_eval upstreams_min "upstreams_" "${upstream_name}" "_min" "0"
-        pihole_munin_safe_eval upstreams_type "upstreams_" "${upstream_name}" "_type" "${graph_type}"
-        pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstream_name}" "_warn" ""
+        if [ "${#label}" -gt 19 ]; then
+            label="$(printf "%s" "${label}" | cut -c1-16)..."
+        fi
+        pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstreams_key}" "_colour" ""
+        pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstreams_key}" "_crit" ""
+        pihole_munin_safe_eval upstreams_draw "upstreams_" "${upstreams_key}" "_draw" "${graph_draw}"
+        pihole_munin_safe_eval upstreams_graph "upstreams_" "${upstreams_key}" "_graph" "yes"
+        pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info}"
+        pihole_munin_safe_eval upstreams_label "upstreams_" "${upstreams_key}" "_label" "${label}"
+        pihole_munin_safe_eval upstreams_max "upstreams_" "${upstreams_key}" "_max" ""
+        pihole_munin_safe_eval upstreams_min "upstreams_" "${upstreams_key}" "_min" "0"
+        pihole_munin_safe_eval upstreams_type "upstreams_" "${upstreams_key}" "_type" "${graph_type}"
+        pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstreams_key}" "_warn" ""
         pihole_munin_print \
-            "${upstream_name}" \
+            "${upstreams_key}" \
             "${upstreams_colour}" \
             "${upstreams_crit}" \
             "${upstreams_draw}" \
@@ -2216,14 +2232,21 @@ pihole_munin_fetch_upstreams() {
     url="${stats_upstreams_url}?from=$((seconds_timestamp - 300))&until=${seconds_timestamp}"
     upstreams_response=$(pihole_munin_state_handler "${url}") || exit 1
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
-        upstream_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
-        upstream_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
-        if [ -z "${upstream_name}" ] || [ "${upstream_name}" = "null" ]; then
-            upstream_name=$(printf '%s' "${upstream_ip}" | sed 's/\./_dot_/g')
+        raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
+        raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
+        if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+            upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
+        else
+            upstreams_key=$(printf "%s" "${raw_ip}" | tr -c 'a-zA-Z0-9' '_')
         fi
+        case "${upstreams_key}" in
+            [0-9]*)
+                upstreams_key="upstreams_${upstreams_key}"
+                ;;
+        esac
         upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
         if pihole_munin_graph_zero "upstreams" || [ "${upstream_count}" -ne "0" ]; then
-            printf "%s.value %s\n" "${upstream_name}" "${upstream_count}"
+            printf "%s.value %s\n" "${upstreams_key}" "${upstream_count}"
         fi
     done
 }

@@ -13,7 +13,7 @@
 
 ## Overview
 
-`pihole_munin_` is a POSIX shell script that acts as a wildcard Munin plugin, providing a suite of metrics for Pi-hole installations. It supports dynamic configuration, authentication, plugin management, and state caching.
+`pihole_munin_` is a POSIX shell Munin wildcard plugin, providing a suite of metrics for monitoring Pi-hole installations. It supports dynamic configuration, authentication, plugin management, and state caching.
 
 ---
 
@@ -73,8 +73,6 @@
 
 ---
 
-## Installation
-
 ### Automatic
 
 1. Fetch the script:
@@ -92,7 +90,7 @@
 
 ### Manual
 
-1. Clone this repository:
+1. Clone this repository
     ```sh
     git clone https://github.com/saint-lascivious/pihole_munin_.git
     ```
@@ -107,7 +105,7 @@
     chmod +x /usr/share/munin/plugins/pihole_munin_
     ```
 
-3. Create symlinks in `/etc/munin/plugins/` for each plugins you wish to enable:
+3. Create symlinks in `/etc/munin/plugins/` for each plugins you wish to enable
 
     ```sh
     ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache
@@ -119,10 +117,16 @@
     The full list of plugins is:
     `pihole_munin_cache`, `pihole_munin_cache_by_type`, `pihole_munin_clients`, `pihole_munin_dnsmasq`, `pihole_munin_domains_blocked`, `pihole_munin_gravity`, `pihole_munin_percent_blocked`, `pihole_munin_privacy_level`, `pihole_munin_queries`, `pihole_munin_queries_by_status`, `pihole_munin_replies_by_type`, and `pihole_munin_blocking_status`.
 
-4. Restart the Munin node:
+4. Restart the Munin node
     ```sh
     systemctl restart munin-node
     ```
+
+5. …Wait
+    Wait, around five minutes.
+
+    Munin nodes run their plugins periodically, by default at 5 minute intervals past the hour.
+    After the first run, you should see the new plugins in your Munin web interface.
 
 ---
 
@@ -184,22 +188,14 @@ Order of precedence:
 
 ---
 
-## Dependencies
-
-- `curl`
-- `jq`
-- `mktemp`
-
----
-
 ## Documentation
 Documentation for `pihole_munin_` can be found in [the pihole_munin_ wiki](https://github.com/saint-lascivious/pihole_munin_/wiki#pihole_munin_).
 
 ---
 
 ## Compatibility
-- Pi-hole Version Compatible with Pi-hole >= 6.0.
-- Munin Version Compatible with Munin >= 2.0.
+- Munin >= 2.0.
+- Pi-hole >= 6.0.
 
 ---
 

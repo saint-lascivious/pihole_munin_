@@ -13,7 +13,7 @@
 
 ## Overview
 
-`pihole_munin_` is a POSIX shell Munin wildcard plugin, providing a suite of metrics for monitoring Pi-hole installations. It supports dynamic configuration, authentication, plugin management, and state caching.
+`pihole_munin_` is a POSIX shell Munin wildcard plugin, providing a suite of plugins for monitoring Pi-hole installations. It supports dynamic configuration, authentication, plugin management, and state caching.
 
 ---
 

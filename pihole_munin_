@@ -1107,16 +1107,6 @@ pihole_munin_graph_zero() {
 }
 
 pihole_munin_config_cache() {
-    cache_colour=""
-    cache_crit=""
-    cache_draw=""
-    cache_graph=""
-    cache_info=""
-    cache_label=""
-    cache_max=""
-    cache_min=""
-    cache_type=""
-    cache_warn=""
     printf "%s\n" \
         "graph ${graph_cache:-${graph}}" \
         "graph_args ${graph_args_cache:-${graph_args}}" \
@@ -1143,31 +1133,21 @@ pihole_munin_config_cache() {
             pihole_munin_safe_eval cache_warn "cache_" "${cache_key}" "_warn" ""
             pihole_munin_print \
                 "${cache_key}" \
-                "${cache_colour}" \
-                "${cache_crit}" \
-                "${cache_draw}" \
-                "${cache_graph}" \
-                "${cache_info}" \
-                "${cache_label}" \
-                "${cache_max}" \
-                "${cache_min}" \
-                "${cache_type}" \
-                "${cache_warn}"
+                "${cache_colour:-}" \
+                "${cache_crit:-}" \
+                "${cache_draw:-}" \
+                "${cache_graph:-}" \
+                "${cache_info:-}" \
+                "${cache_label:-}" \
+                "${cache_max:-}" \
+                "${cache_min:-}" \
+                "${cache_type:-}" \
+                "${cache_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_cache_by_type() {
-    cache_by_type_colour=""
-    cache_by_type_crit=""
-    cache_by_type_draw=""
-    cache_by_type_graph=""
-    cache_by_type_info=""
-    cache_by_type_label=""
-    cache_by_type_max=""
-    cache_by_type_min=""
-    cache_by_type_type=""
-    cache_by_type_warn=""
     [ "${graph_total_cache_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_cache_by_type:-total}"
     printf "%s\n" \
         "graph ${graph_cache_by_type:-${graph}}" \
@@ -1212,16 +1192,16 @@ pihole_munin_config_cache_by_type() {
                 pihole_munin_safe_eval cache_by_type_warn "cache_by_type_" "${cache_by_type_key}" "_warn" ""
                 pihole_munin_print \
                     "${cache_by_type_key}" \
-                    "${cache_by_type_colour}" \
-                    "${cache_by_type_crit}" \
-                    "${cache_by_type_draw}" \
-                    "${cache_by_type_graph}" \
-                    "${cache_by_type_info}" \
-                    "${cache_by_type_label}" \
-                    "${cache_by_type_max}" \
-                    "${cache_by_type_min}" \
-                    "${cache_by_type_type}" \
-                    "${cache_by_type_warn}"
+                    "${cache_by_type_colour:-}" \
+                    "${cache_by_type_crit:-}" \
+                    "${cache_by_type_draw:-}" \
+                    "${cache_by_type_graph:-}" \
+                    "${cache_by_type_info:-}" \
+                    "${cache_by_type_label:-}" \
+                    "${cache_by_type_max:-}" \
+                    "${cache_by_type_min:-}" \
+                    "${cache_by_type_type:-}" \
+                    "${cache_by_type_warn:-}"
             fi
         done
     done
@@ -1277,16 +1257,6 @@ pihole_munin_config_clients() {
 }
 
 pihole_munin_config_dnsmasq() {
-    dnsmasq_colour=""
-    dnsmasq_crit=""
-    dnsmasq_draw=""
-    dnsmasq_graph=""
-    dnsmasq_info=""
-    dnsmasq_label=""
-    dnsmasq_max=""
-    dnsmasq_min=""
-    dnsmasq_type=""
-    dnsmasq_warn=""
     printf "%s\n" \
         "graph ${graph_dnsmasq:-${graph}}" \
         "graph_args ${graph_args_dnsmasq:-${graph_args}}" \
@@ -1314,31 +1284,21 @@ pihole_munin_config_dnsmasq() {
             pihole_munin_safe_eval dnsmasq_warn "dnsmasq_" "${dnsmasq_key}" "_warn" ""
             pihole_munin_print \
                 "${dnsmasq_key}" \
-                "${dnsmasq_colour}" \
-                "${dnsmasq_crit}" \
-                "${dnsmasq_draw}" \
-                "${dnsmasq_graph}" \
-                "${dnsmasq_info}" \
-                "${dnsmasq_label}" \
-                "${dnsmasq_max}" \
-                "${dnsmasq_min}" \
-                "${dnsmasq_type}" \
-                "${dnsmasq_warn}"
+                "${dnsmasq_colour:-}" \
+                "${dnsmasq_crit:-}" \
+                "${dnsmasq_draw:-}" \
+                "${dnsmasq_graph:-}" \
+                "${dnsmasq_info:-}" \
+                "${dnsmasq_label:-}" \
+                "${dnsmasq_max:-}" \
+                "${dnsmasq_min:-}" \
+                "${dnsmasq_type:-}" \
+                "${dnsmasq_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_domains() {
-    domains_domains_being_blocked_colour=""
-    domains_domains_being_blocked_crit=""
-    domains_domains_being_blocked_draw=""
-    domains_domains_being_blocked_graph=""
-    domains_domains_being_blocked_info=""
-    domains_domains_being_blocked_label=""
-    domains_domains_being_blocked_max=""
-    domains_domains_being_blocked_min=""
-    domains_domains_being_blocked_type=""
-    domains_domains_being_blocked_warn=""
     printf "%s\n" \
         "graph ${graph_domains:-${graph}}" \
         "graph_args ${graph_args_domains:-${graph_args}}" \
@@ -1389,16 +1349,6 @@ pihole_munin_config_frequency() {
 }
 
 pihole_munin_config_gravity() {
-    gravity_colour=""
-    gravity_crit=""
-    gravity_draw=""
-    gravity_graph=""
-    gravity_info=""
-    gravity_label=""
-    gravity_max=""
-    gravity_min=""
-    gravity_type=""
-    gravity_warn=""
     printf "%s\n" \
         "graph ${graph_gravity:-${graph}}" \
         "graph_args ${graph_args_gravity:-${graph_args}}" \
@@ -1443,31 +1393,21 @@ pihole_munin_config_gravity() {
             pihole_munin_safe_eval gravity_warn "gravity_" "${gravity_key}" "_warn" ""
             pihole_munin_print \
                 "${gravity_key}" \
-                "${gravity_colour}" \
-                "${gravity_crit}" \
-                "${gravity_draw}" \
-                "${gravity_graph}" \
-                "${gravity_info}" \
-                "${gravity_label}" \
-                "${gravity_max}" \
-                "${gravity_min}" \
-                "${gravity_type}" \
-                "${gravity_warn}"
+                "${gravity_colour:-}" \
+                "${gravity_crit:-}" \
+                "${gravity_draw:-}" \
+                "${gravity_graph:-}" \
+                "${gravity_info:-}" \
+                "${gravity_label:-}" \
+                "${gravity_max:-}" \
+                "${gravity_min:-}" \
+                "${gravity_type:-}" \
+                "${gravity_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_overview() {
-    overview_colour=""
-    overview_crit=""
-    overview_draw=""
-    overview_graph=""
-    overview_info=""
-    overview_label=""
-    overview_max=""
-    overview_min=""
-    overview_type=""
-    overview_warn=""
     printf "%s\n" \
         "graph ${graph_overview:-${graph}}" \
         "graph_args ${graph_args_overview:-${graph_args}}" \
@@ -1501,28 +1441,28 @@ pihole_munin_config_overview() {
             pihole_munin_safe_eval overview_warn "overview_" "${overview_record_type}" "_warn" ""
             pihole_munin_print \
                 "query_${overview_record_type}" \
-                "${overview_colour}" \
-                "${overview_crit}" \
-                "${overview_draw}" \
+                "${overview_colour:-}" \
+                "${overview_crit:-}" \
+                "${overview_draw:-}" \
                 "no" \
-                "${overview_info}" \
-                "${overview_label}" \
-                "${overview_max}" \
-                "${overview_min}" \
-                "${overview_type}" \
-                "${overview_warn}"
+                "${overview_info:-"Pi-hole query ${overview_record_type}"}" \
+                "${overview_label:-"query ${overview_record_type}"}" \
+                "${overview_max:-}" \
+                "${overview_min:-}" \
+                "${overview_type:-}" \
+                "${overview_warn:-}"
             pihole_munin_print \
                 "${overview_record_type}" \
-                "${overview_colour}" \
-                "${overview_crit}" \
-                "${overview_draw}" \
-                "${overview_graph}" \
-                "${overview_info}" \
-                "${overview_label}" \
-                "${overview_max}" \
-                "${overview_min}" \
-                "${overview_type}" \
-                "${overview_warn}"
+                "${overview_colour:-}" \
+                "${overview_crit:-}" \
+                "${overview_draw:-}" \
+                "${overview_graph:-}" \
+                "${overview_info:-}" \
+                "${overview_label:-}" \
+                "${overview_max:-}" \
+                "${overview_min:-}" \
+                "${overview_type:-}" \
+                "${overview_warn:-}"
             printf "%s.negative %s\n" "${overview_record_type}" "query_${overview_record_type}"
         fi
     done
@@ -1579,16 +1519,6 @@ pihole_munin_config_privacy() {
 }
 
 pihole_munin_config_queries() {
-    queries_colour=""
-    queries_crit=""
-    queries_draw=""
-    queries_graph=""
-    queries_info=""
-    queries_label=""
-    queries_max=""
-    queries_min=""
-    queries_type=""
-    queries_warn=""
     [ "${graph_total_queries:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries:-total}"
     printf "%s\n" \
         "graph ${graph_queries:-${graph}}" \
@@ -1623,31 +1553,21 @@ pihole_munin_config_queries() {
             pihole_munin_safe_eval queries_warn "queries_" "${queries_key}" "_warn" ""
             pihole_munin_print \
                 "${queries_key}" \
-                "${queries_colour}" \
-                "${queries_crit}" \
-                "${queries_draw}" \
-                "${queries_graph}" \
-                "${queries_info}" \
-                "${queries_label}" \
-                "${queries_max}" \
-                "${queries_min}" \
-                "${queries_type}" \
-                "${queries_warn}"
+                "${queries_colour:-}" \
+                "${queries_crit:-}" \
+                "${queries_draw:-}" \
+                "${queries_graph:-}" \
+                "${queries_info:-}" \
+                "${queries_label:-}" \
+                "${queries_max:-}" \
+                "${queries_min:-}" \
+                "${queries_type:-}" \
+                "${queries_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_queries_by_status() {
-    queries_by_status_colour=""
-    queries_by_status_crit=""
-    queries_by_status_draw=""
-    queries_by_status_graph=""
-    queries_by_status_info=""
-    queries_by_status_label=""
-    queries_by_status_max=""
-    queries_by_status_min=""
-    queries_by_status_type=""
-    queries_by_status_warn=""
     [ "${graph_total_queries_by_status:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries_by_status:-total}"
     printf "%s\n" \
         "graph ${graph_queries_by_status:-${graph}}" \
@@ -1676,31 +1596,21 @@ pihole_munin_config_queries_by_status() {
             pihole_munin_safe_eval queries_by_status_warn "queries_by_status_" "${queries_by_status_key}" "_warn" ""
             pihole_munin_print \
                 "${queries_by_status_key}" \
-                "${queries_by_status_colour}" \
-                "${queries_by_status_crit}" \
-                "${queries_by_status_draw}" \
-                "${queries_by_status_graph}" \
-                "${queries_by_status_info}" \
-                "${queries_by_status_label}" \
-                "${queries_by_status_max}" \
-                "${queries_by_status_min}" \
-                "${queries_by_status_type}" \
-                "${queries_by_status_warn}"
+                "${queries_by_status_colour:-}" \
+                "${queries_by_status_crit:-}" \
+                "${queries_by_status_draw:-}" \
+                "${queries_by_status_graph:-}" \
+                "${queries_by_status_info:-}" \
+                "${queries_by_status_label:-}" \
+                "${queries_by_status_max:-}" \
+                "${queries_by_status_min:-}" \
+                "${queries_by_status_type:-}" \
+                "${queries_by_status_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_queries_by_type() {
-    queries_by_type_colour=""
-    queries_by_type_crit=""
-    queries_by_type_draw=""
-    queries_by_type_graph=""
-    queries_by_type_info=""
-    queries_by_type_label=""
-    queries_by_type_max=""
-    queries_by_type_min=""
-    queries_by_type_type=""
-    queries_by_type_warn=""
     [ "${graph_total_queries_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries_by_type:-total}"
     printf "%s\n" \
         "graph ${graph_queries_by_type:-${graph}}" \
@@ -1729,31 +1639,21 @@ pihole_munin_config_queries_by_type() {
             pihole_munin_safe_eval queries_by_type_warn "queries_by_type_" "${queries_by_type_key}" "_warn" ""
             pihole_munin_print \
                 "${queries_by_type_key}" \
-                "${queries_by_type_colour}" \
-                "${queries_by_type_crit}" \
-                "${queries_by_type_draw}" \
-                "${queries_by_type_graph}" \
-                "${queries_by_type_info}" \
-                "${queries_by_type_label}" \
-                "${queries_by_type_max}" \
-                "${queries_by_type_min}" \
-                "${queries_by_type_type}" \
-                "${queries_by_type_warn}"
+                "${queries_by_type_colour:-}" \
+                "${queries_by_type_crit:-}" \
+                "${queries_by_type_draw:-}" \
+                "${queries_by_type_graph:-}" \
+                "${queries_by_type_info:-}" \
+                "${queries_by_type_label:-}" \
+                "${queries_by_type_max:-}" \
+                "${queries_by_type_min:-}" \
+                "${queries_by_type_type:-}" \
+                "${queries_by_type_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_replies() {
-    replies_colour=""
-    replies_crit=""
-    replies_draw=""
-    replies_graph=""
-    replies_info=""
-    replies_label=""
-    replies_max=""
-    replies_min=""
-    replies_type=""
-    replies_warn=""
     [ "${graph_total_replies:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_replies:-total}"
     printf "%s\n" \
         "graph ${graph_replies:-${graph}}" \
@@ -1782,31 +1682,21 @@ pihole_munin_config_replies() {
             pihole_munin_safe_eval replies_warn "replies_" "${replies_key}" "_warn" ""
             pihole_munin_print \
                 "${replies_key}" \
-                "${replies_colour}" \
-                "${replies_crit}" \
-                "${replies_draw}" \
-                "${replies_graph}" \
-                "${replies_info}" \
-                "${replies_label}" \
-                "${replies_max}" \
-                "${replies_min}" \
-                "${replies_type}" \
-                "${replies_warn}"
+                "${replies_colour:-}" \
+                "${replies_crit:-}" \
+                "${replies_draw:-}" \
+                "${replies_graph:-}" \
+                "${replies_info:-}" \
+                "${replies_label:-}" \
+                "${replies_max:-}" \
+                "${replies_min:-}" \
+                "${replies_type:-}" \
+                "${replies_warn:-}"
         fi
     done
 }
 
 pihole_munin_config_replies_by_type() {
-    replies_by_type_colour=""
-    replies_by_type_crit=""
-    replies_by_type_draw=""
-    replies_by_type_graph=""
-    replies_by_type_info=""
-    replies_by_type_label=""
-    replies_by_type_max=""
-    replies_by_type_min=""
-    replies_by_type_type=""
-    replies_by_type_warn=""
     [ "${graph_total_replies_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_replies_by_type:-total}"
     printf "%s\n" \
         "graph ${graph_replies_by_type:-${graph}}" \
@@ -1835,16 +1725,16 @@ pihole_munin_config_replies_by_type() {
             pihole_munin_safe_eval replies_by_type_warn "replies_by_type_" "${replies_by_type_key}" "_warn" ""
             pihole_munin_print \
                 "${replies_by_type_key}" \
-                "${replies_by_type_colour}" \
-                "${replies_by_type_crit}" \
-                "${replies_by_type_draw}" \
-                "${replies_by_type_graph}" \
-                "${replies_by_type_info}" \
-                "${replies_by_type_label}" \
-                "${replies_by_type_max}" \
-                "${replies_by_type_min}" \
-                "${replies_by_type_type}" \
-                "${replies_by_type_warn}"
+                "${replies_by_type_colour:-}" \
+                "${replies_by_type_crit:-}" \
+                "${replies_by_type_draw:-}" \
+                "${replies_by_type_graph:-}" \
+                "${replies_by_type_info:-}" \
+                "${replies_by_type_label:-}" \
+                "${replies_by_type_max:-}" \
+                "${replies_by_type_min:-}" \
+                "${replies_by_type_type:-}" \
+                "${replies_by_type_warn:-}"
         fi
     done
 }
@@ -1900,16 +1790,6 @@ pihole_munin_config_unique() {
 }
 
 pihole_munin_config_upstreams() {
-    upstreams_colour=""
-    upstreams_crit=""
-    upstreams_draw=""
-    upstreams_graph=""
-    upstreams_info=""
-    upstreams_label=""
-    upstreams_max=""
-    upstreams_min=""
-    upstreams_type=""
-    upstreams_warn=""
     printf "%s\n" \
         "graph ${graph_upstreams:-${graph}}" \
         "graph_args ${graph_args_upstreams:-${graph_args}}" \
@@ -1957,16 +1837,16 @@ pihole_munin_config_upstreams() {
         pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstreams_key}" "_warn" ""
         pihole_munin_print \
             "${upstreams_key}" \
-            "${upstreams_colour}" \
-            "${upstreams_crit}" \
-            "${upstreams_draw}" \
-            "${upstreams_graph}" \
-            "${upstreams_info}" \
-            "${upstreams_label}" \
-            "${upstreams_max}" \
-            "${upstreams_min}" \
-            "${upstreams_type}" \
-            "${upstreams_warn}"
+            "${upstreams_colour:-}" \
+            "${upstreams_crit:-}" \
+            "${upstreams_draw:-}" \
+            "${upstreams_graph:-}" \
+            "${upstreams_info:-}" \
+            "${upstreams_label:-}" \
+            "${upstreams_max:-}" \
+            "${upstreams_min:-}" \
+            "${upstreams_type:-}" \
+            "${upstreams_warn:-}"
     done
 }
 
@@ -2775,17 +2655,29 @@ pihole_munin_configure() {
             case "${add_var}" in
                 "user"|"group")
                     add_entry="    ${add_var} ${add_val}"
-                    tmpfile="$(mktemp /tmp/pihole_munin_conf.XXXXXX)" || { printf "%s\n" "  [❌] Failed to create temp file." >&2; exit 1; }
-                    pihole_munin_safe_write sed "/^ *${add_var}\s/d" "${config_file}" > "${tmpfile}"
+                    tmp_file="$(mktemp /tmp/pihole_munin_conf.XXXXXX 2>/dev/null)" \
+                        || tmp_file="$(mktemp -t pihole_munin_conf.XXXXXX 2>/dev/null)" \
+                        || tmp_file="$(mktemp 2>/dev/null)" \
+                        || {
+                            printf "%s\n" "  [❌] Failed to create temporary file." >&2
+                            exit 1
+                        }
+                    pihole_munin_safe_write sed "/^ *${add_var}\s/d" "${config_file}" > "${tmp_file}"
                 ;;
                 *)
                     add_entry="    env.${add_var} ${add_val}"
-                    tmpfile="$(mktemp /tmp/pihole_munin_conf.XXXXXX)" || { printf "%s\n" "  [❌] Failed to create temp file." >&2; exit 1; }
-                    pihole_munin_safe_write sed "/^ *env\.${add_var}\s/d" "${config_file}" > "${tmpfile}"
+                    tmp_file="$(mktemp /tmp/pihole_munin_conf.XXXXXX 2>/dev/null)" \
+                        || tmp_file="$(mktemp -t pihole_munin_conf.XXXXXX 2>/dev/null)" \
+                        || tmp_file="$(mktemp 2>/dev/null)" \
+                        || {
+                            printf "%s\n" "  [❌] Failed to create temporary file." >&2
+                            exit 1
+                        }
+                    pihole_munin_safe_write sed "/^ *env\.${add_var}\s/d" "${config_file}" > "${tmp_file}"
                 ;;
             esac
-            pihole_munin_safe_write printf "%s\n" "${add_entry}" >> "${tmpfile}"
-            pihole_munin_safe_move mv "${tmpfile}" "${config_file}"
+            pihole_munin_safe_write printf "%s\n" "${add_entry}" >> "${tmp_file}"
+            pihole_munin_safe_move mv "${tmp_file}" "${config_file}"
             printf "%s\n\n%s\n" \
                 "       ${add_var}" \
                 "  [✅] Success."
@@ -2807,9 +2699,15 @@ pihole_munin_configure() {
                 ;;
             esac
             if grep -Eq "${pattern}" "${config_file}"; then
-                tmpfile="$(mktemp /tmp/pihole_munin_conf.XXXXXX)" || { printf "%s\n" "  [❌] Failed to create temp file." >&2; exit 1; }
-                pihole_munin_safe_write sed "/${pattern}/d" "${config_file}" > "${tmpfile}"
-                pihole_munin_safe_move mv "${tmpfile}" "${config_file}"
+                tmp_file="$(mktemp /tmp/pihole_munin_conf.XXXXXX 2>/dev/null)" \
+                    || tmp_file="$(mktemp -t pihole_munin_conf.XXXXXX 2>/dev/null)" \
+                    || tmp_file="$(mktemp 2>/dev/null)" \
+                    || {
+                        printf "%s\n" "  [❌] Failed to create temporary file." >&2
+                        exit 1
+                    }
+                pihole_munin_safe_write sed "/${pattern}/d" "${config_file}" > "${tmp_file}"
+                pihole_munin_safe_move mv "${tmp_file}" "${config_file}"
                 printf "%s\n\n%s\n" \
                     "       ${remove_var}" \
                     "  [✅] Success."
@@ -2890,11 +2788,14 @@ pihole_munin_update() {
         printf "%s\n" "  [❌] Update target '${pihole_munin_path}' not found." >&2
         exit 1
     }
-    tmp_file="$(mktemp /tmp/pihole_munin_update.XXXXXX)" || {
-        printf "%s\n" "  [❌] Failed to create temporary file." >&2
-        exit 1
-    }
-    printf "  %s Fetching pihole_munin_ from %s...\n" \
+    tmp_file="$(mktemp /tmp/pihole_munin_update.XXXXXX 2>/dev/null)" \
+        || tmp_file="$(mktemp -t pihole_munin_update.XXXXXX 2>/dev/null)" \
+        || tmp_file="$(mktemp 2>/dev/null)" \
+        || {
+            printf "%s\n" "  [❌] Failed to create temporary file." >&2
+            exit 1
+        }
+        printf "  %s Fetching pihole_munin_ from %s...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[⬇️]" || printf "[⬇️] (DRY RUN)" )" \
         "${repo_url}"
     if curl -fsSL "${raw_url}" -o "${tmp_file}"; then

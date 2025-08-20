@@ -729,10 +729,10 @@ GNU GPLv3
 case "${0}" in
     /*)
         script_path="${0}"
-    ;;
+        ;;
     *)
         script_path="$(cd "$(dirname "${0}")" && pwd)/$(basename "${0}")"
-    ;;
+        ;;
 esac
 
 pihole_munin_plugin_id="$(printf "%s" "${script_path}" | sed -e 's/^.*pihole_munin_//')"
@@ -780,13 +780,13 @@ if [ -n "${proto+x}" ]; then
     case "${proto_normalised}" in
         "http"|"https")
             proto="${proto_normalised}"
-        ;;
+            ;;
         *)
             printf "%s\n\n%s\n" \
                 "  [❌] API variable 'proto' is set to an invalid value." \
                 "  [ℹ️] Please set the 'proto' variable to either 'http' or 'https'." >&2
             exit 1
-        ;;
+            ;;
     esac
 else
     proto="http"
@@ -800,7 +800,7 @@ elif [ -n "${pihole_password+set}" ]; then
         "nopassword"|"none"|"null")
             password_to_use=""
             password_set="1"
-        ;;
+            ;;
         "")
             printf "%s\n\n%s\n%s\n%s\n" \
                 "  [❌] API variable 'pihole_password' is set to an empty string." \
@@ -808,18 +808,18 @@ elif [ -n "${pihole_password+set}" ]; then
                 "       it to one of 'nopassword', 'none' or 'null' if your Pi-hole password" \
                 "       is intentionally blank." >&2
             exit 1
-        ;;
+            ;;
         *)
             password_to_use="${pihole_password}"
             password_set="1"
-        ;;
+            ;;
     esac
 else
     host_normalised=$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')
     case "${host_normalised}" in
         "127.0.0.1"|"localhost"|"localhost.localdomain"|"::1"|"ip6-localhost"|"ip6-loopback")
             is_localhost="1"
-        ;;
+            ;;
     esac
     if [ -r "${cli_password}" ]; then
         if [ -s "${cli_password}" ]; then
@@ -893,7 +893,7 @@ pihole_munin_print() {
         case "${graph_val}" in
             "yes"|"no")
                 printf "%s.graph %s\n" "${key_val}" "${graph_val}"
-            ;;
+                ;;
         esac
     fi
     if [ -n "${info_val}" ] && [ -n "$(printf '%s' "${info_val}" | tr -d '[:space:]')" ]; then
@@ -914,7 +914,7 @@ pihole_munin_print() {
         case "${type_val}" in
             "GAUGE"|"COUNTER"|"DERIVE"|"ABSOLUTE")
                 printf "%s.type %s\n" "${key_val}" "${type_val}"
-            ;;
+                ;;
         esac
     fi
     if [ -n "${warn_val}" ] && [ -n "$(printf '%s' "${warn_val}" | tr -d '[:space:]')" ]; then
@@ -944,14 +944,14 @@ pihole_munin_auth_check() {
                 auth_required="0"
                 already_authed="1"
             fi
-        ;;
+            ;;
         "401")
             :
-        ;;
+            ;;
         *)
             printf "%s\n" "  [❌] Unepected response from the API, response code was '${check_code}'." >&2
             exit 1
-        ;;
+            ;;
     esac
 }
 
@@ -960,6 +960,8 @@ session_cache="${SESSION_CACHE:-0}"
 seconds_timestamp=$(date +%s)
 
 pihole_munin_plugstate="${PIHOLE_MUNIN_PLUGSTATE:-${MUNIN_PLUGSTATE:-/tmp}}"
+
+mkdir -p "${pihole_munin_plugstate}"
 
 pihole_munin_auth() {
     pihole_munin_session_file="${pihole_munin_plugstate}/pihole_session.state"
@@ -997,11 +999,11 @@ pihole_munin_logout() {
     case "${logout_code}" in
         "200"|"204")
             :
-        ;;
+            ;;
         *)
             printf "%s\n" "  [❌] Logout failed, response code was '${logout_code}'.\n" >&2
             exit 1
-        ;;
+            ;;
     esac
 }
 
@@ -1016,7 +1018,7 @@ pihole_munin_safe_eval() {
         ''|*[!a-zA-Z0-9_]*)
             eval "${outvar}=\"\${default}\""
             return
-        ;;
+            ;;
     esac
     varname="${prefix}${field_key}${suffix}"
     cachevar="_cache_${varname}"
@@ -1037,7 +1039,7 @@ pihole_munin_api_url() {
         case "${url}" in
             *"\?"*)
                 sep="&"
-            ;;
+                ;;
         esac
         url="${url}${sep}sid=${pihole_munin_session_sid}"
     fi
@@ -1172,12 +1174,12 @@ pihole_munin_config_cache_by_type() {
                     cache_by_type_key="${cache_by_type_name}"
                     cache_by_type_default_label="${cache_by_type_name}"
                     cache_by_type_value="${cache_by_type_valid}"
-                ;;
+                    ;;
                 "stale")
                     cache_by_type_key="${cache_by_type_name}_STALE"
                     cache_by_type_default_label="${cache_by_type_name} (stale)"
                     cache_by_type_value="${cache_by_type_stale}"
-                ;;
+                    ;;
             esac
             if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne "0" ]; then
                 pihole_munin_safe_eval cache_by_type_colour "cache_by_type_" "${cache_by_type_key}" "_colour" ""
@@ -1236,7 +1238,7 @@ pihole_munin_config_clients() {
                         "${clients_active_min:-"0"}" \
                         "${clients_active_type:-${graph_type}}" \
                         "${clients_active_warn:-"1:50"}"
-                ;;
+                    ;;
                 "total")
                     pihole_munin_print \
                         "${clients_key}" \
@@ -1250,7 +1252,7 @@ pihole_munin_config_clients() {
                         "${clients_total_min:-"0"}" \
                         "${clients_total_type:-${graph_type}}" \
                         "${clients_total_warn:-"1:100"}"
-                ;;
+                    ;;
             esac
         fi
     done
@@ -1371,13 +1373,13 @@ pihole_munin_config_gravity() {
         case "${gravity_key}" in
             "domains_"*)
                 gravity_jq_key=".ftl.database.domains.${gravity_key#domains_}"
-            ;;
+                ;;
             "regex_"*)
                 gravity_jq_key=".ftl.database.regex.${gravity_key#regex_}"
-            ;;
+                ;;
             *)
                 gravity_jq_key=".ftl.database.${gravity_key}"
-            ;;
+                ;;
         esac
         gravity_value=$(printf '%s' "${gravity_response}" | jq -r "${gravity_jq_key} // 0")
         if pihole_munin_graph_zero "gravity" || [ "${gravity_value}" -ne "0" ]; then
@@ -1813,7 +1815,7 @@ pihole_munin_config_upstreams() {
         case "${upstreams_key}" in
             [0-9]*)
                 upstreams_key="upstreams_${upstreams_key}"
-                ;;
+                    ;;
         esac
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
             label="${raw_name}"
@@ -1851,7 +1853,7 @@ pihole_munin_config_upstreams() {
 }
 
 pihole_munin_check_dependencies() {
-    plugin_dependencies="curl jq mktemp"
+    plugin_dependencies="awk curl grep jq mktemp sed"
     for plugin_dependency in ${plugin_dependencies}; do
         if ! command -v "${plugin_dependency}" >/dev/null 2>&1; then
             printf "%s\n" "  [❌] '${plugin_dependency}' is not installed or not in PATH." >&2
@@ -1864,58 +1866,62 @@ pihole_munin_config_handler() {
     case "${pihole_munin_plugin_id}" in
         "cache")
             pihole_munin_config_cache
-        ;;
+            ;;
         "cache_by_type")
             pihole_munin_config_cache_by_type
-        ;;
+            ;;
         "clients")
             pihole_munin_config_clients
-        ;;
+            ;;
         "dnsmasq")
             pihole_munin_config_dnsmasq
-        ;;
+            ;;
         "domains")
             pihole_munin_config_domains
-        ;;
+            ;;
         "frequency")
             pihole_munin_config_frequency
-        ;;
+            ;;
         "gravity")
             pihole_munin_config_gravity
-        ;;
+            ;;
         "overview")
             pihole_munin_config_overview
-        ;;
+            ;;
         "percent")
             pihole_munin_config_percent
-        ;;
+            ;;
         "privacy")
             pihole_munin_config_privacy
-        ;;
+            ;;
         "queries")
             pihole_munin_config_queries
-        ;;
+            ;;
         "queries_by_status")
             pihole_munin_config_queries_by_status
-        ;;
+            ;;
         "queries_by_type")
             pihole_munin_config_queries_by_type
-        ;;
+            ;;
         "replies")
             pihole_munin_config_replies
-        ;;
+            ;;
         "replies_by_type")
             pihole_munin_config_replies_by_type
-        ;;
+            ;;
         "status")
             pihole_munin_config_status
-        ;;
+            ;;
         "unique")
             pihole_munin_config_unique
-        ;;
+            ;;
         "upstreams")
             pihole_munin_config_upstreams
-        ;;
+            ;;
+        *)
+            printf "%s\n" "  [❌] Unable to generate config for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
+            exit 1
+            ;;
     esac
 }
 
@@ -1941,11 +1947,11 @@ pihole_munin_fetch_cache_by_type() {
                 "valid")
                     cache_by_type_key="${cache_by_type_name}"
                     cache_by_type_value="${cache_by_type_valid}"
-                ;;
+                    ;;
                 "stale")
                     cache_by_type_key="${cache_by_type_name}_STALE"
                     cache_by_type_value="${cache_by_type_stale}"
-                ;;
+                    ;;
             esac
             if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne "0" ]; then
                 printf "%s.value %s\n" "${cache_by_type_key}" "${cache_by_type_value}"
@@ -1990,13 +1996,13 @@ pihole_munin_fetch_gravity() {
         case "${gravity_key}" in
             "domains_"*)
                 gravity_jq_key=".ftl.database.domains.${gravity_key#domains_}"
-            ;;
+                ;;
             "regex_"*)
                 gravity_jq_key=".ftl.database.regex.${gravity_key#regex_}"
-            ;;
+                ;;
             *)
                 gravity_jq_key=".ftl.database.${gravity_key}"
-            ;;
+                ;;
         esac
         gravity_value=$(printf '%s' "${gravity_response}" | jq -r "${gravity_jq_key} // 0")
         if pihole_munin_graph_zero "gravity" || [ "${gravity_value}" -ne "0" ]; then
@@ -2091,13 +2097,13 @@ pihole_munin_fetch_status() {
         case "${status_key}" in
             "enabled")
                 status_value="1"
-            ;;
+                ;;
             "disabled")
                 status_value="0"
-            ;;
+                ;;
             *)
                 status_value="-1"
-            ;;
+                ;;
         esac
         printf "blocking_status.value %s\n" "${status_value}"
     done
@@ -2122,7 +2128,7 @@ pihole_munin_fetch_upstreams() {
         case "${upstreams_key}" in
             [0-9]*)
                 upstreams_key="upstreams_${upstreams_key}"
-                ;;
+                    ;;
         esac
         upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
         if pihole_munin_graph_zero "upstreams" || [ "${upstream_count}" -ne "0" ]; then
@@ -2135,58 +2141,62 @@ pihole_munin_fetch_handler() {
     case "${pihole_munin_plugin_id}" in
         "cache")
             pihole_munin_fetch_cache
-        ;;
+            ;;
         "cache_by_type")
             pihole_munin_fetch_cache_by_type
-        ;;
+            ;;
         "clients")
             pihole_munin_fetch_clients
-        ;;
+            ;;
         "dnsmasq")
             pihole_munin_fetch_dnsmasq
-        ;;
+            ;;
         "domains")
             pihole_munin_fetch_domains
-        ;;
+            ;;
         "frequency")
             pihole_munin_fetch_frequency
-        ;;
+            ;;
         "gravity")
             pihole_munin_fetch_gravity
-        ;;
+            ;;
         "overview")
             pihole_munin_fetch_overview
-        ;;
+            ;;
         "percent")
             pihole_munin_fetch_percent
-        ;;
+            ;;
         "privacy")
             pihole_munin_fetch_privacy
-        ;;
+            ;;
         "queries")
             pihole_munin_fetch_queries
-        ;;
+            ;;
         "queries_by_status")
             pihole_munin_fetch_queries_by_status
-        ;;
+            ;;
         "queries_by_type")
             pihole_munin_fetch_queries_by_type
-        ;;
+            ;;
         "replies")
             pihole_munin_fetch_replies
-        ;;
+            ;;
         "replies_by_type")
             pihole_munin_fetch_replies_by_type
-        ;;
+            ;;
         "status")
             pihole_munin_fetch_status
-        ;;
+            ;;
         "unique")
             pihole_munin_fetch_unique
-        ;;
+            ;;
         "upstreams")
             pihole_munin_fetch_upstreams
-        ;;
+            ;;
+        *)
+            printf "%s\n" "  [❌] Unable to fetch data for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
+            exit 1
+            ;;
     esac
 }
 
@@ -2293,10 +2303,10 @@ parse_install_args() {
         case "${1}" in
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
-                ;;
+                    ;;
             *)
                 plugins_arg="${plugins_arg} ${1}"
-                ;;
+                    ;;
         esac
         shift
     done
@@ -2412,7 +2422,7 @@ pihole_munin_flush() {
         case "${option}" in
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
-            ;;
+                ;;
         esac
     done
     if [ ! -d "${pihole_munin_plugstate}" ]; then
@@ -2521,28 +2531,28 @@ pihole_munin_mask_input() {
         case "${input_char}" in
             "0a")
                 break
-            ;;
+                ;;
             "7f"|"08")
                 if [ -n "${input}" ]; then
                     input=${input%?}
                     printf '\b \b'
                 fi
-            ;;
+                ;;
             ??)
                 case "${input_char}" in
                     [0-9a-fA-F][0-9a-fA-F])
                         char=$(printf "\\x%s" "${input_char}")
                         input="${input}${char}"
                         printf '*'
-                    ;;
+                        ;;
                     *)
                         continue
-                    ;;
+                        ;;
                 esac
-            ;;
+                ;;
             *)
                 continue
-            ;;
+                ;;
         esac
     done
     pihole_munin_term_cleanup
@@ -2558,6 +2568,15 @@ pihole_munin_safe_prompt() {
         printf "%s\n" "  [❌] Entered values do not match." >&2
         return 1
     fi
+}
+
+pihole_munin_mktemp() {
+    mktemp_dir="${1:-/tmp}"
+    mktemp_prefix="${2:-pihole_munin_}"
+    mktemp "${mktemp_dir}/${mktemp_prefix}.XXXXXX" 2>/dev/null || mktemp -t "${mktemp_prefix}.XXXXXX" || {
+        printf "%s\n" "  [❌] Unable to create temporary file '${mktemp_prefix}'." >&2
+        exit 1
+    }
 }
 
 pihole_munin_configure() {
@@ -2587,7 +2606,7 @@ pihole_munin_configure() {
                 fi
             done
             printf "\n%s\n" "  [✅] Success."
-        ;;
+            ;;
         "add")
             [ -z "${1}" ] && {
                 printf "%s\n" "  [❌] No variable specified for addition." >&2
@@ -2597,7 +2616,7 @@ pihole_munin_configure() {
             case "${add_var}" in
                 "env."*)
                     add_var="${add_var#env.}"
-                ;;
+                    ;;
             esac
             shift
             add_val="$*"
@@ -2616,12 +2635,12 @@ pihole_munin_configure() {
                     case "${trimmed_value}" in
                         "nopassword"|"none"|"null")
                             :
-                        ;;
+                            ;;
                         *)
                             printf "\n%s\n\n%s\n" \
                                 "  [⚠️] Sensitive variable '${add_var}' passed on the command line." \
                                 "       This may be visible in shell history or process lists." >&2
-                        ;;
+                            ;;
                     esac
                     if [ -z "${trimmed_value}" ]; then
                         printf "\n%s\n\n%s\n\n" \
@@ -2632,7 +2651,7 @@ pihole_munin_configure() {
                         fi
                         trimmed_value="${add_val}"
                     fi
-                ;;
+                    ;;
                 "app_password")
                     printf "\n%s\n\n%s\n" \
                         "  [⚠️] Sensitive variable '${add_var}' passed on the command line." \
@@ -2646,7 +2665,7 @@ pihole_munin_configure() {
                         fi
                         trimmed_value="${add_val}"
                     fi
-                ;;
+                    ;;
             esac
             [ -z "${trimmed_value}" ] && {
                 printf "%s\n" "  [❌] Value for '${add_var}' is empty or whitespace only." >&2
@@ -2655,33 +2674,21 @@ pihole_munin_configure() {
             case "${add_var}" in
                 "user"|"group")
                     add_entry="    ${add_var} ${add_val}"
-                    tmp_file="$(mktemp /tmp/pihole_munin_conf.XXXXXX 2>/dev/null)" \
-                        || tmp_file="$(mktemp -t pihole_munin_conf.XXXXXX 2>/dev/null)" \
-                        || tmp_file="$(mktemp 2>/dev/null)" \
-                        || {
-                            printf "%s\n" "  [❌] Failed to create temporary file." >&2
-                            exit 1
-                        }
+                    tmp_file=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "pihole_munin_conf_add_${add_var}")
                     pihole_munin_safe_write sed "/^ *${add_var}\s/d" "${config_file}" > "${tmp_file}"
-                ;;
+                    ;;
                 *)
                     add_entry="    env.${add_var} ${add_val}"
-                    tmp_file="$(mktemp /tmp/pihole_munin_conf.XXXXXX 2>/dev/null)" \
-                        || tmp_file="$(mktemp -t pihole_munin_conf.XXXXXX 2>/dev/null)" \
-                        || tmp_file="$(mktemp 2>/dev/null)" \
-                        || {
-                            printf "%s\n" "  [❌] Failed to create temporary file." >&2
-                            exit 1
-                        }
+                    tmp_file=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "pihole_munin_conf_add_env_${add_var}")
                     pihole_munin_safe_write sed "/^ *env\.${add_var}\s/d" "${config_file}" > "${tmp_file}"
-                ;;
+                    ;;
             esac
             pihole_munin_safe_write printf "%s\n" "${add_entry}" >> "${tmp_file}"
             pihole_munin_safe_move mv "${tmp_file}" "${config_file}"
             printf "%s\n\n%s\n" \
                 "       ${add_var}" \
                 "  [✅] Success."
-        ;;
+            ;;
         "remove")
             [ -z "${1}" ] && { printf "  [❌] No variable specified for removal.\n" >&2; exit 1; }
             printf "%s\n" "  [➖] Removing variable from '${config_file}'..."
@@ -2689,23 +2696,17 @@ pihole_munin_configure() {
             case "${remove_var}" in
                 "user")
                     pattern='^ *user[[:space:]]'
-                ;;
+                    ;;
                 "group")
                     pattern='^ *group[[:space:]]'
-                ;;
+                    ;;
                 *)
                     escaped_var=$(printf '%s' "${remove_var}" | sed 's/[][\\.^$*]/\\&/g')
                     pattern="^ *env\.${escaped_var}[[:space:]]"
-                ;;
+                    ;;
             esac
             if grep -Eq "${pattern}" "${config_file}"; then
-                tmp_file="$(mktemp /tmp/pihole_munin_conf.XXXXXX 2>/dev/null)" \
-                    || tmp_file="$(mktemp -t pihole_munin_conf.XXXXXX 2>/dev/null)" \
-                    || tmp_file="$(mktemp 2>/dev/null)" \
-                    || {
-                        printf "%s\n" "  [❌] Failed to create temporary file." >&2
-                        exit 1
-                    }
+                tmp_file=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "pihole_munin_conf_remove_${remove_var}")
                 pihole_munin_safe_write sed "/${pattern}/d" "${config_file}" > "${tmp_file}"
                 pihole_munin_safe_move mv "${tmp_file}" "${config_file}"
                 printf "%s\n\n%s\n" \
@@ -2714,10 +2715,10 @@ pihole_munin_configure() {
             else
                 printf "\n%s\n\n" "  [⚠️] Variable '${remove_var}' not found in '${config_file}'."
             fi
-        ;;
+            ;;
         *)
             printf "\n%s\n\n" "  [⚠️] Unknown command '${configure_command}'." >&2
-        ;;
+            ;;
     esac
 }
 
@@ -2741,11 +2742,11 @@ pihole_munin_version() {
         case "${option}" in
             "-S"|"skip"|"--skip-version-check")
                 skip_check="1"
-            ;;
+                ;;
             *)
                 printf "\n%s\n\n" "  [⚠️] Unknown option '${option}'."
                 pihole_munin_help version
-            ;;
+                ;;
         esac
     done
     printf "%s\n" "  [📦] Version: ${pihole_munin_version}"
@@ -2781,21 +2782,15 @@ pihole_munin_update() {
         case "${option}" in
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
-            ;;
+                ;;
         esac
     done
     [ -f "${pihole_munin_path}" ] || {
         printf "%s\n" "  [❌] Update target '${pihole_munin_path}' not found." >&2
         exit 1
     }
-    tmp_file="$(mktemp /tmp/pihole_munin_update.XXXXXX 2>/dev/null)" \
-        || tmp_file="$(mktemp -t pihole_munin_update.XXXXXX 2>/dev/null)" \
-        || tmp_file="$(mktemp 2>/dev/null)" \
-        || {
-            printf "%s\n" "  [❌] Failed to create temporary file." >&2
-            exit 1
-        }
-        printf "  %s Fetching pihole_munin_ from %s...\n" \
+    tmp_file=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "pihole_munin_update")
+    printf "  %s Fetching pihole_munin_ from %s...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[⬇️]" || printf "[⬇️] (DRY RUN)" )" \
         "${repo_url}"
     if curl -fsSL "${raw_url}" -o "${tmp_file}"; then
@@ -2848,12 +2843,12 @@ pihole_munin_update() {
                 case "${answer}" in
                     [yY]|[yY][eE][sS])
                         printf "\n%s\n\n" "  [🚀] Proceeding with update..."
-                    ;;
+                        ;;
                     *)
                         printf "%b\n" "  [❌] ${TEXT_RED}Aborted by user (interactive session).${TEXT_RESET}" >&2
                         rm -f "${tmp_file}"
                         exit 1
-                    ;;
+                        ;;
                 esac
             else
                 printf "%b\n" "  [❌] ${TEXT_RED}Aborted (non-interactive session).${TEXT_RESET}" >&2
@@ -2929,14 +2924,14 @@ pihole_munin_test() {
         case "${option}" in
             "-D"|"dry"|"--dry-run")
                 dry_run="1"
-            ;;
+                ;;
             "-T"|"trace"|"--trace")
                 trace="1"
                 verbose="1"
-            ;;
+                ;;
             "-V"|"verbose"|"--verbose")
                 verbose="1"
-            ;;
+                ;;
         esac
     done
     printf "\n  %s Testing pihole_munin_ plugins...\n" \
@@ -2994,7 +2989,7 @@ pihole_munin_help() {
                         "  Examples:" \
                         "    ${script_path} ${1} ${2} host 192.168.1.10" \
                         "    ${script_path} ${1} ${2} user pihole"
-                ;;
+                    ;;
                 "-i"|"install"|"--install")
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2} [<plugin> ...] [<option>]" \
@@ -3007,13 +3002,13 @@ pihole_munin_help() {
                         "    ${script_path} ${1} ${2} --dry-run" \
                         "    ${script_path} ${1} ${2} cache clients" \
                         "    ${script_path} ${1} ${2} cache clients --dry-run"
-                ;;
+                    ;;
                 "-l"|"list"|"--list")
                     printf "%s\n\n%s\n\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2}" \
                         "       List all configured plugin variables." \
                         "  [ℹ️] Sensitive variables (e.g. passwords) will be masked."
-                ;;
+                    ;;
                 "-p"|"password"|"--password")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2} [<password>]" \
@@ -3023,7 +3018,7 @@ pihole_munin_help() {
                         "  Examples:" \
                         "    ${script_path} ${1} ${2} mysecretpassword" \
                         "    ${script_path} ${1} ${2} nopassword"
-                ;;
+                    ;;
                 "-r"|"remove"|"--remove")
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2} <var>" \
@@ -3031,7 +3026,7 @@ pihole_munin_help() {
                         "  Examples:" \
                         "    ${script_path} ${1} ${2} host" \
                         "    ${script_path} ${1} ${2} user"
-                ;;
+                    ;;
                 "-u"|"uninstall"|"--uninstall")
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2} [<plugin> ...] [<option>]" \
@@ -3044,7 +3039,7 @@ pihole_munin_help() {
                         "    ${script_path} ${1} ${2} --dry-run" \
                         "    ${script_path} ${1} ${2} cache clients" \
                         "    ${script_path} ${1} ${2} cache clients --dry-run"
-                ;;
+                    ;;
                 "-U"|"update"|"--update")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2} [<option>]" \
@@ -3055,7 +3050,7 @@ pihole_munin_help() {
                         "    -D, dry, --dry-run         Show what would be done, without making any changes." \
                         "  Example:" \
                         "    ${script_path} ${1} ${2} --dry-run"
-                ;;
+                    ;;
                 "" )
                     printf "%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
                         "  [❓] ${script_path} ${1} <subcommand>" \
@@ -3069,14 +3064,14 @@ pihole_munin_help() {
                         "    -u, uninstall, --uninstall Disable all plugins and uninstall pihole_munin_." \
                         "    -U, update                 Update pihole_munin_ to the latest version." \
                         "  [ℹ️] Run '${script_path} help admin <subcommand>' for more information on a subcommand."
-                ;;
+                    ;;
                 * )
                     printf "%s\n\n%s\n" \
                         "  [⚠️] Unknown ${1} subcommand '${2}'" \
                         "  [ℹ️] Run '${script_path} help admin' for a list of available subcommands."
-                ;;
+                    ;;
             esac
-        ;;
+            ;;
         "autoconf")
             printf "%s\n\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n\n%s\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1}" \
@@ -3089,14 +3084,14 @@ pihole_munin_help() {
                 "       The plugin should always exit 0, even if the response is 'no'." \
                 "       If the answer was 'yes' and it's not a wildcard plugin, the plugin will" \
                 "       be linked into the plugins catalog of munin-node."
-        ;;
+            ;;
         "config")
             printf "%s\n\n%s\n\n%s\n\n%s\n" \
                 "  [❓] ${script_path} ${1}" \
                 "       The config output describes the plugin and the graph it creates." \
                 "       The full set of attributes you can use is found in the config reference." \
                 "       https://guide.munin-monitoring.org/en/master/reference/plugin.html" \
-        ;;
+            ;;
         "fetch")
             printf "%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n" \
                 "  [❓] ${script_path} ${1}" \
@@ -3105,7 +3100,7 @@ pihole_munin_help() {
                 "       emit one or more 'field.value' attribute values." \
                 "       One for each thing the plugin observes as defined by the config output." \
                 "       Plotting of graphs may be disabled by the config output."
-        ;;
+            ;;
         "-f"|"flush"|"--flush-state")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1} [<option>]" \
@@ -3116,14 +3111,14 @@ pihole_munin_help() {
                 "    -D, dry, --dry-run         Show what would be done, without making any changes." \
                 "  Example:" \
                 "    ${script_path} ${1} --dry-run"
-        ;;
+            ;;
         "-h"|"help"|"--help")
             printf "%s\n\n%s\n\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1} <command> [<subcommand>]" \
                 "       Displays general or detailed help for commands and subcommands." \
                 "  Example:" \
                 "    ${script_path} ${1} admin add"
-        ;;
+            ;;
         "setpassword")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1} [<password>]" \
@@ -3133,7 +3128,7 @@ pihole_munin_help() {
                 "  Examples:" \
                 "    ${script_path} ${1} mysecretpassword" \
                 "    ${script_path} ${1} nopassword"
-        ;;
+            ;;
         "suggest")
             printf "%s\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n" \
                 "  [❓] ${script_path} ${1}" \
@@ -3144,7 +3139,7 @@ pihole_munin_help() {
                 "       The plugin is stored as one file in the directory for available plugins," \
                 "       but is linked as multiple files in the directory for enabled plugins." \
                 "       This creates one graph per link name, using just one plugin as source."
-        ;;
+            ;;
         "-t"|"test"|"--test-plugins")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1}" \
@@ -3161,7 +3156,7 @@ pihole_munin_help() {
                 "    ${script_path} ${1} --dry-run" \
                 "    ${script_path} ${1} --trace" \
                 "    ${script_path} ${1} --verbose"
-        ;;
+            ;;
         "-v"|"version"|"--version")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1} [<option>]" \
@@ -3173,7 +3168,7 @@ pihole_munin_help() {
                 "  Examples:" \
                 "    ${script_path} ${1}" \
                 "    ${script_path} ${1} --skip-version-check"
-        ;;
+            ;;
         "")
             printf "%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
                 "  [❓] ${script_path} <command>" \
@@ -3189,11 +3184,11 @@ pihole_munin_help() {
                 "    -t, test, --test-plugins   Test all pihole_munin_ plugins." \
                 "    -v, version, --version     Display the plugin version string." \
                 "  [ℹ️] Run '${script_path} help <command>' for more information on a command."
-        ;;
+            ;;
         * )
             printf "\n%s\n\n" "  [⚠️] Unknown help topic '$*'."
             pihole_munin_help
-        ;;
+            ;;
     esac
 }
 
@@ -3202,7 +3197,7 @@ for argument in "$@"; do
         "-h"|"help"|"--help")
             help_flag="${argument}"
             break
-        ;;
+            ;;
     esac
 done
 
@@ -3224,24 +3219,21 @@ case "${1}" in
         case "${2}" in
             "-A"|"add"|"--add"|"-l"|"list"|"--list"|"-p"|"password"|"--password"|"-r"|"remove"|"--remove")
                 pihole_munin_root "$@"
-            ;;
+                ;;
             "-i"|"install"|"--install")
                 pihole_munin_root "$@"
-            ;;
+                ;;
             "-u"|"uninstall"|"--uninstall")
                 pihole_munin_root "$@"
-            ;;
+                ;;
             "-U"|"update"|"--update")
                 pihole_munin_root "$@"
-            ;;
+                ;;
         esac
-    ;;
-    "-f"|"flush"|"--flush-state")
+        ;;
+    "-f"|"flush"|"--flush-state"|"setpassword"|"-t"|"test"|"--test-plugins")
         pihole_munin_root "$@"
-    ;;
-    "setpassword"|"-t"|"test"|"--test-plugins")
-        pihole_munin_root "$@"
-    ;;
+        ;;
 esac
 
 case "${1}" in
@@ -3250,86 +3242,86 @@ case "${1}" in
             "-A"|"add"|"--add")
                 shift 2
                 pihole_munin_configure "add" "$@"
-            ;;
+                ;;
             "-i"|"install"|"--install")
                 pihole_munin_install "$@"
-            ;;
+                ;;
             "-l"|"list"|"--list")
                 pihole_munin_configure "list"
-            ;;
+                ;;
             "-p"|"password"|"--password")
                 shift 2
                 pihole_munin_configure "add" "pihole_password" "$@"
-            ;;
+                ;;
             "-r"|"remove"|"--remove")
                 shift 2
                 pihole_munin_configure "remove" "$@"
-            ;;
+                ;;
             "-u"|"uninstall"|"--uninstall")
                 pihole_munin_uninstall "$@"
-            ;;
+                ;;
             "-U"|"update"|"--update")
                 pihole_munin_update "$@"
-            ;;
+                ;;
             "")
                 pihole_munin_help "${1}"
-            ;;
+                ;;
             *)
                 pihole_munin_help "${1}" "${2}"
-            ;;
+                ;;
         esac
-    ;;
+        ;;
     "autoconf")
         pihole_munin_autoconf
-    ;;
+        ;;
     "config")
         pihole_munin_config_handler
         if [ "${MUNIN_CAP_DIRTYCONFIG}" = "1" ]; then
             pihole_munin_fetch_handler
         fi
-    ;;
+        ;;
     "fetch")
         pihole_munin_fetch_handler
-    ;;
+        ;;
     "flush")
         pihole_munin_flush "$@"
-    ;;
+        ;;
     "-h"|"help"|"--help")
         case "${2}" in
             "")
                 pihole_munin_help
-            ;;
+                ;;
             "-a"|"admin"|"--admin")
                 pihole_munin_help "${2}" "${3:-}"
-            ;;
+                ;;
             "autoconf"|"config"|"fetch"|"flush"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
                 pihole_munin_help "${2}"
-            ;;
+                ;;
             *)
                 printf "  [⚠️] Unknown help topic '%s'\n\n" "${2}"
                 pihole_munin_help
-            ;;
+                ;;
         esac
-    ;;
+        ;;
     "suggest")
         pihole_munin_suggest
-    ;;
+        ;;
     "setpassword")
         pihole_munin_configure "add" "pihole_password" "${2:-}"
-    ;;
+        ;;
     "-t"|"test"|"--test-plugins")
         pihole_munin_test "$@"
-    ;;
+        ;;
     "-v"|"version"|"--version")
         shift
         pihole_munin_version "$@"
-    ;;
+        ;;
     "")
         pihole_munin_fetch_handler
-    ;;
+        ;;
     *)
         pihole_munin_help
-    ;;
+        ;;
 esac
 
 #    /\_/\  

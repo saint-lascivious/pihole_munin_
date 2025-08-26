@@ -21,7 +21,7 @@
 
 set -e
 
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.3.0"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.3.1"}"
 
 : <<=cut
 =head1 NAME
@@ -2744,7 +2744,8 @@ parse_install_args() {
     # If custom_path is set, override plugins_available and related paths
     if [ -n "${custom_path}" ]; then
         plugins_available="${custom_path}"
-      fi
+        pihole_munin_path="${plugins_available}/pihole_munin_"
+    fi
 }
 
 ###############################################################################
@@ -2766,6 +2767,15 @@ pihole_munin_install() {
     shift 2  # Skip first two arguments (if any)
     parse_install_args "$@"
     plugins_to_clean="0"
+    # Ensure custom plugins_available directory exists if set
+    if [ ! -d "${plugins_available}" ]; then
+        if [ "${dry_run}" -eq "0" ]; then
+            mkdir -p "${plugins_available}" || {
+                printf "%s\n" "  [❌] Failed to create directory '${plugins_available}'." >&2
+                exit 1
+            }
+        fi
+    fi
     printf "  %s Checking required directories...\n" \
         "$( [ "${dry_run}" -eq "0" ] && printf "[🗂️]" || printf "[🗂️] (DRY RUN)")"
     required_dirs="${plugins_available} ${plugins_enabled} ${plugins_config}"

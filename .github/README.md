@@ -87,6 +87,9 @@
     # Run the install script
     ./pihole_munin_ install
     ```
+    - If desired, a custom install location can be specified with the `path` option.
+    - A dry run of the installation performed with the `dry` option.
+    - See `./pihole_munin_ help install` for details or the view the full command list can be viewed [here](https://github.com/saint-lascivious/pihole_munin_/wiki/Command_List) in the wiki.
 
 ### Manual
 
@@ -115,7 +118,7 @@
     ```
 
     The full list of plugins is:
-    `pihole_munin_cache`, `pihole_munin_cache_by_type`, `pihole_munin_clients`, `pihole_munin_dnsmasq`, `pihole_munin_domains_blocked`, `pihole_munin_gravity`, `pihole_munin_percent_blocked`, `pihole_munin_privacy_level`, `pihole_munin_queries`, `pihole_munin_queries_by_status`, `pihole_munin_replies_by_type`, and `pihole_munin_blocking_status`.
+    `pihole_munin_cache`, `pihole_munin_cache_by_type`, `pihole_munin_clients`, `pihole_munin_dnsmasq`, `pihole_munin_domains`, `pihole_munin_gravity`, `pihole_munin_percent_blocked`, `pihole_munin_privacy_level`, `pihole_munin_queries`, `pihole_munin_queries_by_status`, `pihole_munin_replies_by_type`, and `pihole_munin_blocking_status`.
 
 4. Restart the Munin node
     ```sh

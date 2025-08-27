@@ -89,7 +89,7 @@
     ```
     - If desired, a custom install location can be specified with the `path` option.
     - A dry run of the installation performed with the `dry` option.
-    - See `./pihole_munin_ help install` for details or the view the full command list can be viewed [here](https://github.com/saint-lascivious/pihole_munin_/wiki/Command_List) in the wiki.
+    - See `./pihole_munin_ help install` for details or the view the full command list can be viewed [here](https://github.com/saint-lascivious/pihole_munin_/wiki/Command_List).
 
 ### Manual
 

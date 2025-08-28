@@ -7,8 +7,6 @@
 # | .__/ |_||_| |_| \___/ |_| \___||__||_| |_| |_| \__,_||_| |_||_||_| |_||__|
 # |_|
 
-# saint-lascivious (Hayden Pearce), 2025
-
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -19,10 +17,32 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
+###############################################################################
+# Contributors
+###############################################################################
+# - saint-lascivious (Hayden Pearce), 2025
+#   https://github.com/saint-lascivious
+# - Bud, Jae and Tig
+#   ""Supervising.""
+#   ""Definitely Not Jumping On The Bench.""
+
+###############################################################################
+# With Thanks To
+###############################################################################
+# - https://github.com/dispo2
+# - https://github.com/frongd
+
+###############################################################################
+# Initial Setup, Version and Munin Documentation
+###############################################################################
+
+# Exit on error
 set -e
 
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.3.1"}"
+# Set version
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.4.0"}"
 
+# Munin documentation
 : <<=cut
 =head1 NAME
 
@@ -232,7 +252,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # percent
       env.percent_percent_blocked_crit 90
-      env.percent_percent_blocked_warn 1:75
+      env.percent_percent_blocked_warn 1:85
 
       # privacy
       env.privacy_privacy_level_crit 1:3
@@ -1109,6 +1129,7 @@ pihole_munin_logout() {
 ###############################################################################
 # Usage: pihole_munin_safe_eval <outvar> <prefix> <field_key> <suffix> <default>
 # Sets <outvar> to the value of <prefix><field_key><suffix> or <default>.
+###############################################################################
 pihole_munin_safe_eval() {
     outvar="${1}"      # Output variable name
     prefix="${2}"      # Prefix for variable lookup
@@ -1137,6 +1158,7 @@ pihole_munin_safe_eval() {
 # JSON Validation Helper
 ###############################################################################
 # Returns 0 if stdin is valid JSON, else non-zero.
+###############################################################################
 pihole_munin_validate_json() {
     jq empty >/dev/null 2>&1  # Use jq to check for valid JSON
 }
@@ -1146,6 +1168,7 @@ pihole_munin_validate_json() {
 ###############################################################################
 # Usage: pihole_munin_api_url <endpoint>
 # Appends session ID if required for authentication.
+###############################################################################
 pihole_munin_api_url() {
     url="${api_target}${1}"  # Build base URL
     # If authentication is required and session ID is set, append sid param
@@ -1164,9 +1187,11 @@ pihole_munin_api_url() {
 ###############################################################################
 # Usage: pihole_munin_state_handler <endpoint>
 # Caches API responses to disk for TTL, validates JSON.
+###############################################################################
 pihole_munin_state_handler() {
     # Build state file path (sanitize endpoint for filename)
-    pihole_munin_statefile="${pihole_munin_plugstate}/$(printf "%s" "${1}" | sed -E 's/[^a-zA-Z0-9]/_/g').state"
+    pihole_munin_statefile="${pihole_munin_plugstate}/pihole_munin_$(printf "%s" "${1}" \
+        | sed -E 's/[^a-zA-Z0-9]+/_/g; s/^_+//; s/_+$//; s/_+/_/g').state"
     # If state file exists, check if cache is still valid
     if [ -f "${pihole_munin_statefile}" ]; then
         state_time=$(head -n 1 "${pihole_munin_statefile}")  # Read timestamp
@@ -1239,6 +1264,7 @@ graph_width="${graph_width:-"400"}"           # Graph width
 ###############################################################################
 # Usage: pihole_munin_graph_zero <key>
 # Returns 0 if graph_zero for key is "yes", else 1.
+###############################################################################
 pihole_munin_graph_zero() {
     _graph_zero_key="${1}"  # Key to check
     _graph_zero_result=""
@@ -1708,7 +1734,7 @@ pihole_munin_config_percent() {
         "${percent_percent_blocked_max:-"100"}" \
         "${percent_percent_blocked_min:-"0"}" \
         "${percent_percent_blocked_type:-"${graph_type}"}" \
-        "${percent_percent_blocked_warn:-"1:75"}"
+        "${percent_percent_blocked_warn:-"1:85"}"
 }
 
 ###############################################################################
@@ -2577,7 +2603,9 @@ pihole_munin_fetch_handler() {
 }
 
 ###############################################################################
-# Munin Autoconf: Checks if plugin can run on this system
+# Munin Autoconf
+###############################################################################
+# Checks if plugin can run on this system
 ###############################################################################
 pihole_munin_autoconf() {
     # Check required dependencies
@@ -2600,7 +2628,9 @@ pihole_munin_autoconf() {
 }
 
 ###############################################################################
-# Normalise Plugins: Cleans up plugin list string
+# Normalise Plugins
+###############################################################################
+# Cleans up plugin list string
 ###############################################################################
 pihole_munin_normalise_plugins() {
     # Remove comments, empty lines, and normalize commas and newlines
@@ -2612,7 +2642,7 @@ pihole_munin_normalise_plugins() {
 }
 
 ###############################################################################
-# List of valid plugin names
+# List Valid Plugin IDS
 ###############################################################################
 valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status unique"
 
@@ -2620,7 +2650,9 @@ valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity ove
 plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$valid_plugins}")
 
 ###############################################################################
-# Suggest Plugins: Prints all plugins in use (one per line)
+# Suggest Plugins
+###############################################################################
+# # Prints all plugins in use (one per line)
 ###############################################################################
 pihole_munin_suggest() {
     for plugin in ${plugins}; do
@@ -2629,7 +2661,9 @@ pihole_munin_suggest() {
 }
 
 ###############################################################################
-# Filter Valid Plugins: Filters input list to only valid plugins
+# Filter Valid Plugins
+###############################################################################
+# Filters input list to only valid plugins
 # Warns about unknown plugins if 'warn' is passed as second argument
 ###############################################################################
 pihole_munin_filter_valid_plugins() {
@@ -2662,7 +2696,9 @@ pihole_munin_valid_plugins() {
 }
 
 ###############################################################################
-# Validate Input Plugins: Normalises and filters input plugin list
+# Validate Input Plugins
+###############################################################################
+# # Normalises and filters input plugin list
 ###############################################################################
 pihole_munin_validate_input_plugins() {
     input_plugins=$(pihole_munin_normalise_plugins "${1}")
@@ -2670,7 +2706,9 @@ pihole_munin_validate_input_plugins() {
 }
 
 ###############################################################################
-# Root Privilege Helper: Re-executes script as root if needed
+# Root Privilege Helper
+###############################################################################
+# # Re-executes script as root if needed
 ###############################################################################
 pihole_munin_root() {
     if [ "$(id -u)" -ne "0" ]; then
@@ -2691,7 +2729,7 @@ pihole_munin_root() {
 rfc3339_timestamp=$(date --rfc-3339=seconds)
 
 ###############################################################################
-# Obligatory Obnoxious ASCII  (and Unicode Emoji) Header
+# Obligatory Obnoxious ASCII (and Unicode Emoji) Header
 ###############################################################################
 pihole_munin_header() {
     printf "%b\n%b\n%b\n%b\n%b\n%b\n\n%b\n\n%b\n\n" \
@@ -2706,7 +2744,9 @@ pihole_munin_header() {
 }
 
 ###############################################################################
-# Parse install arguments: sets dry_run, plugins list, and custom path
+# Parse install arguments
+###############################################################################
+# # Sets dry_run, plugins list, and custom path options
 ###############################################################################
 parse_install_args() {
     dry_run="0"
@@ -2749,7 +2789,7 @@ parse_install_args() {
 }
 
 ###############################################################################
-# Directory and path setup
+# Directory Setup
 ###############################################################################
 plugins_available="${PLUGINS_AVAILABLE:-/usr/share/munin/plugins}"
 plugins_enabled="${PLUGINS_ENABLED:-/etc/munin/plugins}"
@@ -2760,7 +2800,9 @@ pihole_munin_user="${SUDO_USER:-$USER}"
 pihole_munin_host="$(hostname)"
 
 ###############################################################################
-# Install function: copies plugin, cleans up, enables symlinks, prints info
+# Install Plugin
+###############################################################################
+# # Copies plugin, cleans up, enables symlinks, prints info
 ###############################################################################
 pihole_munin_install() {
     pihole_munin_header
@@ -2872,7 +2914,9 @@ pihole_munin_install() {
 }
 
 ###############################################################################
-# Flush plugin state files (removes *.state files from state directory)
+# Flush Plugin State Files
+###############################################################################
+# # Accepts optional -D, dry, or --dry-run argument
 ###############################################################################
 pihole_munin_flush() {
     dry_run="0"
@@ -2889,30 +2933,30 @@ pihole_munin_flush() {
         printf "%s\n" "  [❌] Missing directory '${pihole_munin_plugstate}'." >&2
         exit 1
     fi
-    # Find all .state files
-    statefiles=$(find "${pihole_munin_plugstate}" -maxdepth 1 -type f -name '*.state' 2>/dev/null)
+    statefiles=$(find "${pihole_munin_plugstate}" -maxdepth 1 -type f -name 'pihole_munin_*.state' 2>/dev/null)
     if [ -z "${statefiles}" ]; then
         printf "%s\n" "  [ℹ️] No state files to flush in '${pihole_munin_plugstate}'."
-        return 0
+    else
+        printf "\n  %s Flushing plugin state directory...\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
+        for statefile_to_flush in ${statefiles}; do
+            printf "%b\n" "       ${statefile_to_flush}"
+            if [ "$dry_run" -eq "0" ]; then
+                rm -f "${statefile_to_flush}" || {
+                    printf "%s\n" "  [❌] Failed to remove statefile '${statefile_to_flush}'" >&2
+                    exit 1
+                }
+            fi
+        done
+        printf "\n  %s Success.\n" \
+            "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
     fi
-    printf "\n  %s Flushing plugin state directory...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
-    # Remove each state file unless dry run
-    for statefile_to_flush in ${statefiles}; do
-        printf "%b\n" "       ${statefile_to_flush}"
-        if [ "$dry_run" -eq "0" ]; then
-            rm -f "${statefile_to_flush}" || {
-                printf "%s\n" "  [❌] Failed to remove statefile '${statefile_to_flush}'" >&2
-                exit 1
-            }
-        fi
-    done
-    printf "\n  %s Success.\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
 }
 
 ###############################################################################
-# Uninstall function: disables plugins, removes plugin file if safe, prints info
+# Uninstall Plugin
+###############################################################################
+# Disables plugins, removes plugin file if safe, prints info
 ###############################################################################
 pihole_munin_uninstall() {
     pihole_munin_header
@@ -2986,12 +3030,16 @@ pihole_munin_uninstall() {
 }
 
 ###############################################################################
+# Safe Write
+###############################################################################
 # Safely run a write command, print error if it fails
 ###############################################################################
 pihole_munin_safe_write() {
     "$@" || { printf "%s\n" "  [❌] Failed to write to temporary file." >&2; return 1; }
 }
 
+###############################################################################
+# Safe Move
 ###############################################################################
 # Safely run a move command, print error if it fails
 ###############################################################################
@@ -3000,7 +3048,9 @@ pihole_munin_safe_move() {
 }
 
 ###############################################################################
-# Masked input: reads input from user, masks with '*' (for passwords)
+# Mask Input
+###############################################################################
+# Reads input from user, masks with '*' (for passwords)
 ###############################################################################
 pihole_munin_mask_input() {
     input=""
@@ -3041,6 +3091,8 @@ pihole_munin_mask_input() {
 }
 
 ###############################################################################
+# Safe Prompt
+###############################################################################
 # Prompt for masked input twice, confirm they match
 ###############################################################################
 pihole_munin_safe_prompt() {
@@ -3055,11 +3107,14 @@ pihole_munin_safe_prompt() {
 }
 
 ###############################################################################
+# Make Temp
+###############################################################################
 # Create a temporary file, print error if it fails
 ###############################################################################
 pihole_munin_mktemp() {
     mktemp_dir="${1:-/tmp}"
     mktemp_prefix="${2:-pihole_munin_}"
+    # Try different mktemp syntaxes for compatibility
     mktemp "${mktemp_dir}/${mktemp_prefix}.XXXXXX" 2>/dev/null || mktemp -t "${mktemp_prefix}.XXXXXX" || {
         printf "%s\n" "  [❌] Unable to create temporary file '${mktemp_prefix}'." >&2
         exit 1
@@ -3067,7 +3122,9 @@ pihole_munin_mktemp() {
 }
 
 ###############################################################################
-# Configure Munin plugin: list/add/remove config variables
+# Configure Function
+###############################################################################
+# Configure Munin plugin, list/add/remove config variables
 ###############################################################################
 pihole_munin_configure() {
     config_file="${plugins_config}/pihole_munin_"
@@ -3215,7 +3272,9 @@ pihole_munin_configure() {
 }
 
 ###############################################################################
-# Compare two version strings (major.minor.patch)
+# Check Versions
+###############################################################################
+# Compares two version strings (major.minor.patch)
 # Returns 0 if first version is newer or equal, 1 otherwise
 ###############################################################################
 pihole_munin_check() {
@@ -3232,6 +3291,8 @@ EOF
     [ "${c:-0}" -gt "${z:-0}" ]
 }
 
+###############################################################################
+# Version Function
 ###############################################################################
 # Print plugin version and check for updates
 ###############################################################################
@@ -3280,6 +3341,8 @@ pihole_munin_version() {
 # Format: YYYY-MM-DD-HH-MM-SS
 datetime_timestamp=$(date +%Y-%m-%d-%H-%M-%S)
 
+###############################################################################
+# Update Plugin
 ###############################################################################
 # Update the pihole_munin_ plugin from GitHub
 ###############################################################################
@@ -3434,6 +3497,8 @@ pihole_munin_update() {
 }
 
 ###############################################################################
+# Test Plugins
+###############################################################################
 # Test all enabled pihole_munin_ plugins using munin-run
 ###############################################################################
 pihole_munin_test() {
@@ -3504,12 +3569,14 @@ pihole_munin_test() {
 }
 
 ###############################################################################
-# Print help for pihole_munin_ commands
+# Help Function
 ###############################################################################
+# Print help for pihole_munin_ commands
 # Usage: pihole_munin_help <command> [<subcommand>]
 # If no command is given, prints general help.
 # If a command is given, prints help for that command.
 # If a subcommand is given, prints help for that subcommand.
+###############################################################################
 pihole_munin_help() {
     case "${1}" in
         "-a"|"admin"|"--admin")
@@ -3739,7 +3806,7 @@ pihole_munin_help() {
 }
 
 ###############################################################################
-# Argument parsing and command dispatch
+# Argument Parsing and Command Dispatch
 ###############################################################################
 
 # Check for help flag anywhere in arguments
@@ -3767,7 +3834,7 @@ if [ -n "${help_flag}" ] && [ "${1}" != "${help_flag}" ]; then
 fi
 
 ###############################################################################
-# Redeploy and dispatch as root user
+# Redeploy and Dispatch as Root User (if needed)
 ###############################################################################
 case "${1}" in
     "-a"|"admin"|"--admin")
@@ -3792,7 +3859,7 @@ case "${1}" in
 esac
 
 ###############################################################################
-# Main command dispatch
+# Main Command Dispatch
 ###############################################################################
 case "${1}" in
     "-a"|"admin"|"--admin")

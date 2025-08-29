@@ -40,7 +40,7 @@
 set -e
 
 # Set version
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.4.1"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.4.2"}"
 
 # Munin documentation
 : <<=cut
@@ -2786,8 +2786,8 @@ parse_install_args() {
     fi
     # If custom_path is set, override plugins_available and related paths
     if [ -n "${custom_path}" ]; then
-        # Remove all trailing slashes
-        custom_path=$(printf "%s" "${custom_path}" | sed 's:/*$::')
+        # Remove any duplicate and trailing slashes from custom_path
+        custom_path=$(printf "%s" "${custom_path}" | sed -E 's:/+:/:g; s:/*$::')
         plugins_available="${custom_path}"
         pihole_munin_path="${plugins_available}/pihole_munin_"
     fi

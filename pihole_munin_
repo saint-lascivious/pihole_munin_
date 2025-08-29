@@ -40,7 +40,7 @@
 set -e
 
 # Set version
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.4.0"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.4.1"}"
 
 # Munin documentation
 : <<=cut
@@ -2755,14 +2755,17 @@ parse_install_args() {
     # Loop through all arguments
     while [ $# -gt 0 ]; do
         case "${1}" in
-            "-D"|"dry"|"--dry-run")  # Enable dry run mode
+            "-D"|"dry"|"--dry-run")
+                # Enable dry run mode
                 dry_run="1"
                 ;;
-            "-P"|"path"|"--plugins-path")  # Next argument is custom path
+            "-P"|"path"|"--plugins-path")
+                # Next argument is custom path
                 shift
                 custom_path="${1}"
                 ;;
-            *)  # Collect plugin names
+            *) 
+                # Collect plugin names
                 plugins_arg="${plugins_arg} ${1}"
                 ;;
         esac
@@ -2783,6 +2786,8 @@ parse_install_args() {
     fi
     # If custom_path is set, override plugins_available and related paths
     if [ -n "${custom_path}" ]; then
+        # Remove all trailing slashes
+        custom_path=$(printf "%s" "${custom_path}" | sed 's:/*$::')
         plugins_available="${custom_path}"
         pihole_munin_path="${plugins_available}/pihole_munin_"
     fi

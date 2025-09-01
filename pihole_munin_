@@ -31,6 +31,7 @@
 ###############################################################################
 # - https://github.com/dispo2
 # - https://github.com/frongd
+###############################################################################
 
 ###############################################################################
 # Initial Setup, Version and Munin Documentation
@@ -39,8 +40,9 @@
 # Exit on error
 set -e
 
-# Set version
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.4.2"}"
+# Set local version
+# May be overridden by environment variable PIHOLE_MUNIN_VERSION
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.5.0"}"
 
 # Munin documentation
 : <<=cut
@@ -885,23 +887,29 @@ else
 fi
 
 ###############################################################################
-# Terminal Cleanup & Signal Handling
+# Terminal Cleanup
 ###############################################################################
 
-# Restore terminal settings and print newline
 pihole_munin_term_cleanup() {
+    # Restore terminal settings and print newline
     stty sane
     printf '\n'
 }
 
-# Handler for SIGINT/SIGTERM: cleanup and exit
+###############################################################################
+# Abort Handler
+###############################################################################
+
 pihole_munin_abort_handler() {
+    # Perform terminal cleanup
     pihole_munin_term_cleanup
+    # Print abort message and exit with code 130
     printf "%b\n" "  [❌] ${TEXT_RED}Aborted (SIGINT).${TEXT_RESET}" >&2
     exit 130
 }
 
-# Special shellcheck bypass (for debugging)
+# Shellcheck seems to just give up parsing traps in arbirarily large scripts
+# so we have to do this convince it that the functions are used actually used
 if [ "${__FUCK_YOU_SHELLCHECK:-}" = "1" ]; then
     pihole_munin_term_cleanup
     pihole_munin_abort_handler
@@ -985,6 +993,12 @@ pihole_munin_print() {
     if [ -n "${info_val}" ] && [ -n "$(printf '%s' "${info_val}" | tr -d '[:space:]')" ]; then
         printf "%s.info %s\n" "${key_val}" "${info_val}"
     fi
+    # Truncate label if too long for Munin (19 characters max)
+    if [ "${#label_val}" -gt 19 ]; then
+        # Truncate to 18 characters and add ellipsis to indicate that the
+        # full label is available in the info string or is otherwise known
+        label_val="$(printf "%s" "${label_val}" | cut -c1-18)…"
+    fi
     # Output label (always required)
     printf "%s.label %s\n" "${key_val}" "${label_val}"
     # Output max/min/type/warn if valid
@@ -1016,15 +1030,15 @@ pihole_munin_print() {
 # API Endpoint Setup
 ###############################################################################
 
-proto="${proto:-http}"      # Default protocol
-port="${port:-80}"          # Default port
-api="${api:-/api}"          # Default API path
+proto="${proto:-http}"                          # Default protocol
+port="${port:-80}"                              # Default port
+api="${api:-/api}"                              # Default API path
 
-api_target="${proto}://${host}:${port}${api}"  # Full API base URL
-auth_url="${auth_url:-/auth}"                  # Auth endpoint
+api_target="${proto}://${host}:${port}${api}"   # Full API base URL
+auth_url="${auth_url:-/auth}"                   # Auth endpoint
 
-auth_required="1"           # Flag: 1 if authentication is required
-already_authed="0"          # Flag: 1 if already authenticated
+auth_required="1"                               # Flag: 1 auth required
+already_authed="0"                              # Flag: 1 already authed
 
 ###############################################################################
 # Authentication Check Function
@@ -1034,7 +1048,7 @@ already_authed="0"          # Flag: 1 if already authenticated
 ###############################################################################
 
 pihole_munin_auth_check() {
-    check_response=$(curl --connect-timeout 5 -k -s -L -w "%{response_code}" "${api_target}${auth_url}")
+    check_response=$(curl --connect-timeout 5 -k -s -S -L -w "%{response_code}" "${api_target}${auth_url}")
     check_json=$(printf "%s" "${check_response}" | head -c -3)   # Response body
     check_code=$(printf "%s" "${check_response}" | tail -c 3)    # HTTP status code
     case "${check_code}" in
@@ -1061,8 +1075,8 @@ pihole_munin_auth_check() {
 # Session and State Variables
 ###############################################################################
 
-session_cache="${session_cache:-"0"}"  # Enable session caching (1) or disable (0)
-seconds_timestamp=$(date +%s)          # Current UNIX timestamp for cache TTL checks
+session_cache="${session_cache:-"0"}"  # Enable (1), disable (0) session cache
+seconds_timestamp=$(date +%s)          # Epoch offset for cache TTL checks
 
 # Directory for plugin state files (default: /tmp)
 pihole_munin_plugstate="${PIHOLE_MUNIN_PLUGSTATE:-${MUNIN_PLUGSTATE:-/tmp}}"
@@ -1071,10 +1085,11 @@ mkdir -p "${pihole_munin_plugstate}"   # Ensure state directory exists
 ###############################################################################
 # Authentication Function
 ###############################################################################
+
 pihole_munin_auth() {
     pihole_munin_session_file="${pihole_munin_plugstate}/pihole_session.state"
     # If session caching is enabled and session file exists
-    if [ "${session_cache}" -eq "1" ] && [ -r "${pihole_munin_session_file}" ]; then
+    if [ "${session_cache}" -eq 1 ] && [ -r "${pihole_munin_session_file}" ]; then
         session_time=$(head -n 1 "${pihole_munin_session_file}")  # Read timestamp from file
         # If cached session is still valid (not expired)
         if [ $((seconds_timestamp - session_time)) -lt "${session_ttl:-300}" ]; then
@@ -1083,7 +1098,7 @@ pihole_munin_auth() {
         fi
     fi
     # Fail if no password is set
-    if [ "${password_set}" -ne "1" ]; then
+    if [ "${password_set}" -ne 1 ]; then
         printf "%s\n" "  [❌] No App Password, Pi-hole Password or CLI Password." >&2
         exit 1
     fi
@@ -1092,14 +1107,14 @@ pihole_munin_auth() {
     auth_response_json=$(printf "%s" "${auth_response}" | head -c -3)  # Extract JSON body
     auth_response_code=$(printf "%s" "${auth_response}" | tail -c 3)   # Extract HTTP status code
     # If authentication fails, exit
-    if [ "${auth_response_code}" -ne "200" ]; then
+    if [ "${auth_response_code}" -ne 200 ]; then
         printf "%s\n" "  [❌] Could not get Session ID, response code was '${auth_response_code}'." >&2
         exit 1
     fi
     # Extract session ID from JSON response
     pihole_munin_session_sid=$(printf "%s" "${auth_response_json}" | jq -r '.session.sid')
     # If session caching is enabled, save session ID and timestamp to file
-    if [ -n "${pihole_munin_session_sid}" ] && [ "${session_cache}" -eq "1" ]; then
+    if [ -n "${pihole_munin_session_sid}" ] && [ "${session_cache}" -eq 1 ]; then
         { printf "%s\n%s\n" "${seconds_timestamp}" "${pihole_munin_session_sid}"; } > "${pihole_munin_session_file}"
         chmod 600 "${pihole_munin_session_file}"  # Restrict permissions
     fi
@@ -1108,9 +1123,10 @@ pihole_munin_auth() {
 ###############################################################################
 # Logout Function
 ###############################################################################
+
 pihole_munin_logout() {
     [ -z "${pihole_munin_session_sid}" ] && return 0  # No session, nothing to do
-    [ "${session_cache}" -eq "1" ] && return 0        # If caching, don't logout
+    [ "${session_cache}" -eq 1 ] && return 0        # If caching, don't logout
     # Send DELETE request to API to logout session
     logout_code=$(curl --connect-timeout 5 -k -s -S -L -o - -w "%{response_code}" -X DELETE "${api_target}${auth_url}" \
         -H "Accept: application/json" \
@@ -1127,31 +1143,32 @@ pihole_munin_logout() {
 ###############################################################################
 # Safe Variable Evaluation Helper
 ###############################################################################
-# Usage: pihole_munin_safe_eval <outvar> <prefix> <field_key> <suffix> <default>
-# Sets <outvar> to the value of <prefix><field_key><suffix> or <default>.
+# Usage: pihole_munin_safe_eval <outvar> <prefix> <field> <suffix> <default>
+# Sets <outvar> to the value of <prefix><field><suffix> or <default>.
 ###############################################################################
+
 pihole_munin_safe_eval() {
-    outvar="${1}"      # Output variable name
-    prefix="${2}"      # Prefix for variable lookup
-    field_key="${3}"   # Main variable key
-    suffix="${4}"      # Suffix for variable lookup
-    default="${5}"     # Default value if not set
-    : "${default:=}"   # Ensure default is set
-    # If field_key is empty or contains invalid chars, use default
-    case "${field_key}" in
+    safe_eval_outvar="${1}"     # Output variable name
+    safe_eval_prefix="${2}"     # Prefix for variable lookup
+    safe_eval_field="${3}"      # Main variable key
+    safe_eval_suffix="${4}"     # Suffix for variable lookup
+    safe_eval_default="${5}"    # Default value if not set
+    : "${safe_eval_default:=}"  # Ensure default is set
+    # If field is empty or contains invalid chars, use default
+    case "${safe_eval_field}" in
         ''|*[!a-zA-Z0-9_]*)
-            eval "${outvar}=\"\${default}\""
+            eval "${safe_eval_outvar}=\"\${safe_eval_default}\""
             return
             ;;
     esac
-    varname="${prefix}${field_key}${suffix}"  # Construct variable name
-    cachevar="_cache_${varname}"              # Construct cache variable name
+    varname="${safe_eval_prefix}${safe_eval_field}${safe_eval_suffix}"  # Construct variable name
+    cachevar="_cache_${varname}"  # Construct cache variable name
     # If cached value exists, use it
-    eval "if [ \"\${${cachevar}+x}\" = x ]; then ${outvar}=\"\${${cachevar}}\"; return; fi"
+    eval "if [ \"\${${cachevar}+x}\" = x ]; then ${safe_eval_outvar}=\"\${${cachevar}}\"; return; fi"
     # Otherwise, get value or default, cache it, and set output
-    eval "__pihole_munin_tmp_val__=\"\${${varname}:-\${default}}\""
+    eval "__pihole_munin_tmp_val__=\"\${${varname}:-\${safe_eval_default}}\""
     eval "${cachevar}=\"\${__pihole_munin_tmp_val__}\""
-    eval "${outvar}=\"\${__pihole_munin_tmp_val__}\""
+    eval "${safe_eval_outvar}=\"\${__pihole_munin_tmp_val__}\""
 }
 
 ###############################################################################
@@ -1159,6 +1176,7 @@ pihole_munin_safe_eval() {
 ###############################################################################
 # Returns 0 if stdin is valid JSON, else non-zero.
 ###############################################################################
+
 pihole_munin_validate_json() {
     jq empty >/dev/null 2>&1  # Use jq to check for valid JSON
 }
@@ -1169,10 +1187,11 @@ pihole_munin_validate_json() {
 # Usage: pihole_munin_api_url <endpoint>
 # Appends session ID if required for authentication.
 ###############################################################################
+
 pihole_munin_api_url() {
     url="${api_target}${1}"  # Build base URL
     # If authentication is required and session ID is set, append sid param
-    if [ "${auth_required}" -eq "1" ] && [ -n "${pihole_munin_session_sid}" ]; then
+    if [ "${auth_required}" -eq 1 ] && [ -n "${pihole_munin_session_sid}" ]; then
         sep="?"  # Default separator
         case "${url}" in
             *"\?"*) sep="&" ;;  # If URL already has ?, use &
@@ -1188,6 +1207,7 @@ pihole_munin_api_url() {
 # Usage: pihole_munin_state_handler <endpoint>
 # Caches API responses to disk for TTL, validates JSON.
 ###############################################################################
+
 pihole_munin_state_handler() {
     # Build state file path (sanitize endpoint for filename)
     pihole_munin_statefile="${pihole_munin_plugstate}/pihole_munin_$(printf "%s" "${1}" \
@@ -1213,7 +1233,7 @@ pihole_munin_state_handler() {
     did_auth="0"  # Track if we authenticated in this call
     pihole_munin_auth_check  # Check if authentication is needed
     # If authentication is required and not already authenticated, do it
-    if [ "${auth_required}" -eq "1" ] && [ "${already_authed}" -eq "0" ]; then
+    if [ "${auth_required}" -eq 1 ] && [ "${already_authed}" -eq 0 ]; then
         pihole_munin_auth
         did_auth="1"
     fi
@@ -1230,7 +1250,7 @@ pihole_munin_state_handler() {
             "${response}"
     } | tee "${pihole_munin_statefile}" | tail -n +2
     # If we authenticated and session caching is off, logout
-    if [ "${auth_required}" -eq "1" ] && [ "${did_auth}" -eq "1" ] && [ "${session_cache}" -ne "1" ]; then
+    if [ "${auth_required}" -eq 1 ] && [ "${did_auth}" -eq 1 ] && [ "${session_cache}" -ne 1 ]; then
         pihole_munin_logout
     fi
 }
@@ -1265,6 +1285,7 @@ graph_width="${graph_width:-"400"}"           # Graph width
 # Usage: pihole_munin_graph_zero <key>
 # Returns 0 if graph_zero for key is "yes", else 1.
 ###############################################################################
+
 pihole_munin_graph_zero() {
     _graph_zero_key="${1}"  # Key to check
     _graph_zero_result=""
@@ -1280,6 +1301,7 @@ pihole_munin_graph_zero() {
 ###############################################################################
 # Cache Graph Configuration
 ###############################################################################
+
 pihole_munin_config_cache() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1299,7 +1321,7 @@ pihole_munin_config_cache() {
         # Extract value from JSON, default to 0 if missing
         cache_value=$(printf '%s' "${cache_response}" | jq -r --arg k "${cache_key}" '.metrics.dns.cache[$k] // 0')
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "cache" || [ "${cache_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "cache" || [ "${cache_value}" -ne 0 ]; then
             # Load per-key config overrides (colour, crit, draw, etc.)
             pihole_munin_safe_eval cache_colour "cache_" "${cache_key}" "_colour" ""
             pihole_munin_safe_eval cache_crit "cache_" "${cache_key}" "_crit" ""
@@ -1331,6 +1353,7 @@ pihole_munin_config_cache() {
 ###############################################################################
 # Cache by Type Graph Configuration
 ###############################################################################
+
 pihole_munin_config_cache_by_type() {
     # Optionally add a graph_total line if not "undef"
     [ "${graph_total_cache_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_cache_by_type:-total}"
@@ -1370,7 +1393,7 @@ pihole_munin_config_cache_by_type() {
                     ;;
             esac
             # Only print if graph_zero is enabled or value is non-zero
-            if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne "0" ]; then
+            if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne 0 ]; then
                 # Load per-key config overrides
                 pihole_munin_safe_eval cache_by_type_colour "cache_by_type_" "${cache_by_type_key}" "_colour" ""
                 pihole_munin_safe_eval cache_by_type_crit "cache_by_type_" "${cache_by_type_key}" "_crit" ""
@@ -1403,6 +1426,7 @@ pihole_munin_config_cache_by_type() {
 ###############################################################################
 # Clients Graph Configuration
 ###############################################################################
+
 pihole_munin_config_clients() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1421,7 +1445,7 @@ pihole_munin_config_clients() {
     printf "%s" "${clients_response}" | jq -r '.clients | to_entries[] | "\(.key) \(.value)"' \
     | while read -r clients_key clients_value; do
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "clients" || [ "${clients_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "clients" || [ "${clients_value}" -ne 0 ]; then
             case "${clients_key}" in
                 "active")
                     # Print Munin field config for active clients
@@ -1461,6 +1485,7 @@ pihole_munin_config_clients() {
 ###############################################################################
 # Dnsmasq Graph Configuration
 ###############################################################################
+
 pihole_munin_config_dnsmasq() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1480,7 +1505,7 @@ pihole_munin_config_dnsmasq() {
     | while read -r dnsmasq_key dnsmasq_value; do
         default_label=$(printf "%s" "${dnsmasq_key}" | sed 's/_/ /g')  # Human-readable label
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "dnsmasq" || [ "${dnsmasq_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "dnsmasq" || [ "${dnsmasq_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval dnsmasq_colour "dnsmasq_" "${dnsmasq_key}" "_colour" ""
             pihole_munin_safe_eval dnsmasq_crit "dnsmasq_" "${dnsmasq_key}" "_crit" ""
@@ -1512,6 +1537,7 @@ pihole_munin_config_dnsmasq() {
 ###############################################################################
 # Domains Graph Configuration
 ###############################################################################
+
 pihole_munin_config_domains() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1542,6 +1568,7 @@ pihole_munin_config_domains() {
 ###############################################################################
 # Query Frequency Graph Configuration
 ###############################################################################
+
 pihole_munin_config_frequency() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1572,6 +1599,7 @@ pihole_munin_config_frequency() {
 ###############################################################################
 # Gravity Database Graph Configuration
 ###############################################################################
+
 pihole_munin_config_gravity() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1604,7 +1632,7 @@ pihole_munin_config_gravity() {
         # Extract value from JSON, default to 0 if missing
         gravity_value=$(printf '%s' "${gravity_response}" | jq -r "${gravity_jq_key} // 0")
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "gravity" || [ "${gravity_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "gravity" || [ "${gravity_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval gravity_colour "gravity_" "${gravity_key}" "_colour" ""
             pihole_munin_safe_eval gravity_crit "gravity_" "${gravity_key}" "_crit" ""
@@ -1636,6 +1664,7 @@ pihole_munin_config_gravity() {
 ###############################################################################
 # Overview Graph Configuration
 ###############################################################################
+
 pihole_munin_config_overview() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1663,7 +1692,7 @@ pihole_munin_config_overview() {
         overview_query_val=$(printf '%s\n' "${overview_queries_by_type_response}" | jq -r --arg k "${overview_record_type}" '.types[$k] // 0')
         overview_reply_val=$(printf '%s\n' "${overview_replies_by_type_response}" | jq -r --arg k "${overview_record_type}" '.queries.replies[$k] // 0')
         # Only print if graph_zero is enabled or either value is non-zero
-        if pihole_munin_graph_zero "overview" || [ "${overview_query_val}" -ne "0" ] || [ "${overview_reply_val}" -ne "0" ]; then
+        if pihole_munin_graph_zero "overview" || [ "${overview_query_val}" -ne 0 ] || [ "${overview_reply_val}" -ne 0 ]; then
             # Load per-type config overrides
             pihole_munin_safe_eval overview_colour "overview_" "${overview_record_type}" "_colour" ""
             pihole_munin_safe_eval overview_crit "overview_" "${overview_record_type}" "_crit" ""
@@ -1710,6 +1739,7 @@ pihole_munin_config_overview() {
 ###############################################################################
 # Percent Blocked Graph Configuration
 ###############################################################################
+
 pihole_munin_config_percent() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1740,6 +1770,7 @@ pihole_munin_config_percent() {
 ###############################################################################
 # Privacy Level Graph Configuration
 ###############################################################################
+
 pihole_munin_config_privacy() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -1770,6 +1801,7 @@ pihole_munin_config_privacy() {
 ###############################################################################
 # Queries Graph Configuration
 ###############################################################################
+
 pihole_munin_config_queries() {
     # Optionally add a graph_total line if not "undef"
     [ "${graph_total_queries:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries:-total}"
@@ -1798,7 +1830,7 @@ pihole_munin_config_queries() {
         # Extract value from JSON, default to 0 if missing
         queries_value=$(printf '%s' "${queries_response}" | jq -r --arg k "${queries_key}" '.queries[$k] // 0')
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries" || [ "${queries_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "queries" || [ "${queries_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval queries_colour "queries_" "${queries_key}" "_colour" ""
             pihole_munin_safe_eval queries_crit "queries_" "${queries_key}" "_crit" ""
@@ -1830,6 +1862,7 @@ pihole_munin_config_queries() {
 ###############################################################################
 # Queries by Status Graph Configuration
 ###############################################################################
+
 pihole_munin_config_queries_by_status() {
     # Optionally add a graph_total line if not "undef"
     [ "${graph_total_queries_by_status:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries_by_status:-total}"
@@ -1851,7 +1884,7 @@ pihole_munin_config_queries_by_status() {
     printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | to_entries[] | "\(.key) \(.value)"' \
     | while read -r queries_by_status_key queries_by_status_value; do
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries_by_status" || [ "${queries_by_status_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "queries_by_status" || [ "${queries_by_status_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval queries_by_status_colour "queries_by_status_" "${queries_by_status_key}" "_colour" ""
             pihole_munin_safe_eval queries_by_status_crit "queries_by_status_" "${queries_by_status_key}" "_crit" ""
@@ -1883,6 +1916,7 @@ pihole_munin_config_queries_by_status() {
 ###############################################################################
 # Queries by Type Graph Configuration
 ###############################################################################
+
 pihole_munin_config_queries_by_type() {
     # Optionally add a graph_total line if not "undef"
     [ "${graph_total_queries_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries_by_type:-total}"
@@ -1904,7 +1938,7 @@ pihole_munin_config_queries_by_type() {
     printf "%s" "${queries_by_type_response}" | jq -r '.types | to_entries[] | "\(.key) \(.value)"' \
     | while read -r queries_by_type_key queries_by_type_value; do
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries_by_type" || [ "${queries_by_type_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "queries_by_type" || [ "${queries_by_type_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval queries_by_type_colour "queries_by_type_" "${queries_by_type_key}" "_colour" ""
             pihole_munin_safe_eval queries_by_type_crit "queries_by_type_" "${queries_by_type_key}" "_crit" ""
@@ -1936,6 +1970,7 @@ pihole_munin_config_queries_by_type() {
 ###############################################################################
 # Replies Graph Configuration
 ###############################################################################
+
 pihole_munin_config_replies() {
     # Optionally add a graph_total line if not "undef"
     [ "${graph_total_replies:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_replies:-total}"
@@ -1958,7 +1993,7 @@ pihole_munin_config_replies() {
         # Extract value from JSON, default to 0 if missing
         replies_value=$(printf '%s' "${replies_response}" | jq -r --arg k "${replies_key}" '.metrics.dns.replies[$k] // 0')
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval replies_colour "replies_" "${replies_key}" "_colour" ""
             pihole_munin_safe_eval replies_crit "replies_" "${replies_key}" "_crit" ""
@@ -1990,6 +2025,7 @@ pihole_munin_config_replies() {
 ###############################################################################
 # Replies by Type Graph Configuration
 ###############################################################################
+
 pihole_munin_config_replies_by_type() {
     # Optionally add a graph_total line if not "undef"
     [ "${graph_total_replies_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_replies_by_type:-total}"
@@ -2011,7 +2047,7 @@ pihole_munin_config_replies_by_type() {
     printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | to_entries[] | "\(.key) \(.value)"' \
     | while read -r replies_by_type_key replies_by_type_value; do
         # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "replies_by_type" || [ "${replies_by_type_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "replies_by_type" || [ "${replies_by_type_value}" -ne 0 ]; then
             # Load per-key config overrides
             pihole_munin_safe_eval replies_by_type_colour "replies_by_type_" "${replies_by_type_key}" "_colour" ""
             pihole_munin_safe_eval replies_by_type_crit "replies_by_type_" "${replies_by_type_key}" "_crit" ""
@@ -2043,6 +2079,7 @@ pihole_munin_config_replies_by_type() {
 ###############################################################################
 # Status Graph Configuration
 ###############################################################################
+
 pihole_munin_config_status() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -2073,6 +2110,7 @@ pihole_munin_config_status() {
 ###############################################################################
 # Unique Domains Graph Configuration
 ###############################################################################
+
 pihole_munin_config_unique() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -2103,6 +2141,7 @@ pihole_munin_config_unique() {
 ###############################################################################
 # Upstreams Graph Configuration
 ###############################################################################
+
 pihole_munin_config_upstreams() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -2143,12 +2182,6 @@ pihole_munin_config_upstreams() {
             label="${raw_ip}"
             default_info="Pi-hole upstream server ${raw_ip}"
         fi
-        # Truncate label if too long for Munin (19 characters max)
-        if [ "${#label}" -gt "19" ]; then
-            # Truncate to 16 characters and add ellipsis to indicate that the
-            # full label is available in the info string
-            label="$(printf "%s" "${label}" | cut -c1-16)..."
-        fi
         # Load per-upstream config overrides
         pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstreams_key}" "_colour" ""
         pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstreams_key}" "_crit" ""
@@ -2179,6 +2212,7 @@ pihole_munin_config_upstreams() {
 ###############################################################################
 # Dependency Check Function
 ###############################################################################
+
 pihole_munin_check_dependencies() {
     plugin_dependencies="awk curl grep jq mktemp sed"  # List of required commands
     # Loop through each dependency and check if it's available
@@ -2194,6 +2228,7 @@ pihole_munin_check_dependencies() {
 ###############################################################################
 # Plugin Config Handler
 ###############################################################################
+
 pihole_munin_config_handler() {
     # Select the correct config function based on plugin ID
     case "${pihole_munin_plugin_id}" in
@@ -2262,6 +2297,7 @@ pihole_munin_config_handler() {
 ###############################################################################
 # Fetch Cache Metrics
 ###############################################################################
+
 pihole_munin_fetch_cache() {
     # Get cache metrics from API (cached if possible)
     cache_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
@@ -2270,7 +2306,7 @@ pihole_munin_fetch_cache() {
         # Extract value from JSON, default to 0 if missing
         cache_value=$(printf '%s' "${cache_response}" | jq -r --arg k "${cache_key}" '.metrics.dns.cache[$k] // 0')
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "cache" || [ "${cache_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "cache" || [ "${cache_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${cache_key}" "${cache_value}"
         fi
     done
@@ -2279,6 +2315,7 @@ pihole_munin_fetch_cache() {
 ###############################################################################
 # Fetch Cache by Type Metrics
 ###############################################################################
+
 pihole_munin_fetch_cache_by_type() {
     # Get cache by type metrics from API
     cache_by_type_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
@@ -2302,7 +2339,7 @@ pihole_munin_fetch_cache_by_type() {
                     ;;
             esac
             # Only output if graph_zero is enabled or value is non-zero
-            if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne "0" ]; then
+            if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne 0 ]; then
                 printf "%s.value %s\n" "${cache_by_type_key}" "${cache_by_type_value}"
             fi
         done
@@ -2312,6 +2349,7 @@ pihole_munin_fetch_cache_by_type() {
 ###############################################################################
 # Fetch Clients Metrics
 ###############################################################################
+
 pihole_munin_fetch_clients() {
     # Get client metrics from API
     clients_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
@@ -2319,7 +2357,7 @@ pihole_munin_fetch_clients() {
     printf "%s" "${clients_response}" | jq -r '.clients | to_entries[] | "\(.key) \(.value)"' \
     | while read -r clients_key clients_value; do
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "clients" || [ "${clients_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "clients" || [ "${clients_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${clients_key}" "${clients_value}"
         fi
     done
@@ -2328,6 +2366,7 @@ pihole_munin_fetch_clients() {
 ###############################################################################
 # Fetch Dnsmasq Metrics
 ###############################################################################
+
 pihole_munin_fetch_dnsmasq() {
     # Get dnsmasq metrics from API
     dnsmasq_response=$(pihole_munin_state_handler "${info_ftl_url}" ) || exit 1
@@ -2335,7 +2374,7 @@ pihole_munin_fetch_dnsmasq() {
     printf "%s" "${dnsmasq_response}" | jq -r '.ftl.dnsmasq | to_entries[] | "\(.key) \(.value)"' \
     | while read -r dnsmasq_key dnsmasq_value; do
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "dnsmasq" || [ "${dnsmasq_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "dnsmasq" || [ "${dnsmasq_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${dnsmasq_key}" "${dnsmasq_value}"
         fi
     done
@@ -2344,6 +2383,7 @@ pihole_munin_fetch_dnsmasq() {
 ###############################################################################
 # Fetch Domains Being Blocked
 ###############################################################################
+
 pihole_munin_fetch_domains() {
     # Get domains metrics from API
     domains_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
@@ -2354,6 +2394,7 @@ pihole_munin_fetch_domains() {
 ###############################################################################
 # Fetch Query Frequency
 ###############################################################################
+
 pihole_munin_fetch_frequency() {
     # Get frequency metrics from API
     frequency_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
@@ -2364,6 +2405,7 @@ pihole_munin_fetch_frequency() {
 ###############################################################################
 # Fetch Gravity Database Metrics
 ###############################################################################
+
 pihole_munin_fetch_gravity() {
     # Get gravity database metrics from API
     gravity_response=$(pihole_munin_state_handler "${info_ftl_url}") || exit 1
@@ -2384,7 +2426,7 @@ pihole_munin_fetch_gravity() {
         # Extract value from JSON, default to 0 if missing
         gravity_value=$(printf '%s' "${gravity_response}" | jq -r "${gravity_jq_key} // 0")
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "gravity" || [ "${gravity_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "gravity" || [ "${gravity_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${gravity_key}" "${gravity_value}"
         fi
     done
@@ -2393,6 +2435,7 @@ pihole_munin_fetch_gravity() {
 ###############################################################################
 # Fetch Overview Metrics (queries and replies by type)
 ###############################################################################
+
 pihole_munin_fetch_overview() {
     # Get queries by type and replies by type from API
     overview_queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
@@ -2408,7 +2451,7 @@ pihole_munin_fetch_overview() {
         overview_query_val=$(printf '%s\n' "${overview_queries_by_type_response}" | jq -r --arg k "${overview_record_type}" '.types[$k] // 0')
         overview_reply_val=$(printf '%s\n' "${overview_replies_by_type_response}" | jq -r --arg k "${overview_record_type}" '.queries.replies[$k] // 0')
         # Only output if graph_zero is enabled or either value is non-zero
-        if pihole_munin_graph_zero "overview" || [ "${overview_query_val}" -ne "0" ] || [ "${overview_reply_val}" -ne "0" ]; then
+        if pihole_munin_graph_zero "overview" || [ "${overview_query_val}" -ne 0 ] || [ "${overview_reply_val}" -ne 0 ]; then
             printf "query_%s.value %s\n" "${overview_record_type}" "${overview_query_val}"
             printf "%s.value %s\n" "${overview_record_type}" "${overview_reply_val}"
         fi
@@ -2418,6 +2461,7 @@ pihole_munin_fetch_overview() {
 ###############################################################################
 # Fetch Percent Blocked
 ###############################################################################
+
 pihole_munin_fetch_percent() {
     percent_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
     # Output percent_blocked value, rounded to two decimals
@@ -2427,6 +2471,7 @@ pihole_munin_fetch_percent() {
 ###############################################################################
 # Fetch Privacy Level
 ###############################################################################
+
 pihole_munin_fetch_privacy() {
     ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" ) || exit 1
     # Output privacy_level value
@@ -2436,13 +2481,14 @@ pihole_munin_fetch_privacy() {
 ###############################################################################
 # Fetch Queries Metrics
 ###############################################################################
+
 pihole_munin_fetch_queries() {
     queries_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
     # For each queries key to display
     for queries_key in "blocked" "cached" "forwarded"; do
         queries_value=$(printf '%s' "${queries_response}" | jq -r --arg k "${queries_key}" '.queries[$k] // 0')
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries" || [ "${queries_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "queries" || [ "${queries_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${queries_key}" "${queries_value}"
         fi
     done
@@ -2451,13 +2497,14 @@ pihole_munin_fetch_queries() {
 ###############################################################################
 # Fetch Queries by Status Metrics
 ###############################################################################
+
 pihole_munin_fetch_queries_by_status() {
     queries_by_status_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
     # Iterate over each status key/value pair
     printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | to_entries[] | "\(.key) \(.value)"' \
     | while read -r queries_by_status_key queries_by_status_value; do
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries_by_status" || [ "${queries_by_status_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "queries_by_status" || [ "${queries_by_status_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${queries_by_status_key}" "${queries_by_status_value}"
         fi
     done
@@ -2466,13 +2513,14 @@ pihole_munin_fetch_queries_by_status() {
 ###############################################################################
 # Fetch Queries by Type Metrics
 ###############################################################################
+
 pihole_munin_fetch_queries_by_type() {
     queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
     # Iterate over each type key/value pair
     printf "%s" "${queries_by_type_response}" | jq -r '.types | to_entries[] | "\(.key) \(.value)"' \
     | while read -r queries_by_type_key queries_by_type_value; do
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries_by_type" || [ "${queries_by_type_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "queries_by_type" || [ "${queries_by_type_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${queries_by_type_key}" "${queries_by_type_value}"
         fi
     done
@@ -2481,6 +2529,7 @@ pihole_munin_fetch_queries_by_type() {
 ###############################################################################
 # Fetch Replies Metrics
 ###############################################################################
+
 pihole_munin_fetch_replies() {
     replies_response=$(pihole_munin_state_handler "${info_metrics_url}") || exit 1
     # For each replies key to display
@@ -2488,7 +2537,7 @@ pihole_munin_fetch_replies() {
         replies_value=$(printf '%s\n' "${replies_response}" \
             | jq -r --arg k "${replies_key}" '.metrics.dns.replies[$k] // 0')
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${replies_key}" "${replies_value}"
         fi
     done
@@ -2497,13 +2546,14 @@ pihole_munin_fetch_replies() {
 ###############################################################################
 # Fetch Replies by Type Metrics
 ###############################################################################
+
 pihole_munin_fetch_replies_by_type() {
     replies_by_type_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
     # Iterate over each type key/value pair
     printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | to_entries[] | "\(.key) \(.value)"' \
     | while read -r replies_by_type_key replies_by_type_value; do
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "replies_by_type" || [ "${replies_by_type_value}" -ne "0" ]; then
+        if pihole_munin_graph_zero "replies_by_type" || [ "${replies_by_type_value}" -ne 0 ]; then
             printf "%s.value %s\n" "${replies_by_type_key}" "${replies_by_type_value}"
         fi
     done
@@ -2512,6 +2562,7 @@ pihole_munin_fetch_replies_by_type() {
 ###############################################################################
 # Fetch Blocking Status
 ###############################################################################
+
 pihole_munin_fetch_status() {
     status_response=$(pihole_munin_state_handler "${dns_blocking_url}" ) || exit 1
     # Output blocking status as numeric value for Munin
@@ -2535,6 +2586,7 @@ pihole_munin_fetch_status() {
 ###############################################################################
 # Fetch Unique Domains
 ###############################################################################
+
 pihole_munin_fetch_unique() {
     unique_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
     # Output unique_domains value
@@ -2544,6 +2596,7 @@ pihole_munin_fetch_unique() {
 ###############################################################################
 # Fetch Upstreams Metrics
 ###############################################################################
+
 pihole_munin_fetch_upstreams() {
     # Build API URL for upstreams (last 5 minutes)
     url="${stats_upstreams_url}?from=$((seconds_timestamp - 300))&until=${seconds_timestamp}"
@@ -2566,7 +2619,7 @@ pihole_munin_fetch_upstreams() {
         esac
         upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
         # Only output if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "upstreams" || [ "${upstream_count}" -ne "0" ]; then
+        if pihole_munin_graph_zero "upstreams" || [ "${upstream_count}" -ne 0 ]; then
             printf "%s.value %s\n" "${upstreams_key}" "${upstream_count}"
         fi
     done
@@ -2575,6 +2628,7 @@ pihole_munin_fetch_upstreams() {
 ###############################################################################
 # Fetch Handler: Calls the correct fetch function for the plugin ID
 ###############################################################################
+
 pihole_munin_fetch_handler() {
     case "${pihole_munin_plugin_id}" in
         "cache")              pihole_munin_fetch_cache ;;
@@ -2607,6 +2661,7 @@ pihole_munin_fetch_handler() {
 ###############################################################################
 # Checks if plugin can run on this system
 ###############################################################################
+
 pihole_munin_autoconf() {
     # Check required dependencies
     if ! pihole_munin_check_dependencies >/dev/null 2>&1; then
@@ -2614,12 +2669,12 @@ pihole_munin_autoconf() {
         exit 0
     fi
     # If running on localhost, check for Pi-hole command
-    if { [ "${is_localhost}" -eq "1" ]; } && ! command -v pihole >/dev/null 2>&1; then
+    if { [ "${is_localhost}" -eq 1 ]; } && ! command -v pihole >/dev/null 2>&1; then
         printf "no (not a Pi-hole host)\n"
         exit 0
     fi
     # Check if password is set
-    if [ "${password_set}" -eq "0" ]; then
+    if [ "${password_set}" -eq 0 ]; then
         printf "no (no password set)\n"
         exit 0
     fi
@@ -2632,6 +2687,7 @@ pihole_munin_autoconf() {
 ###############################################################################
 # Cleans up plugin list string
 ###############################################################################
+
 pihole_munin_normalise_plugins() {
     # Remove comments, empty lines, and normalize commas and newlines
     # to spaces, and squeeze multiple spaces into one
@@ -2652,8 +2708,9 @@ plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$valid_plugins}")
 ###############################################################################
 # Suggest Plugins
 ###############################################################################
-# # Prints all plugins in use (one per line)
+# Prints all plugins in use (one per line)
 ###############################################################################
+
 pihole_munin_suggest() {
     for plugin in ${plugins}; do
         printf "%s\n" "${plugin}"
@@ -2666,6 +2723,7 @@ pihole_munin_suggest() {
 # Filters input list to only valid plugins
 # Warns about unknown plugins if 'warn' is passed as second argument
 ###############################################################################
+
 pihole_munin_filter_valid_plugins() {
     input_plugin_list="${1}"
     warn_unknown="${2}"
@@ -2678,7 +2736,7 @@ pihole_munin_filter_valid_plugins() {
                 break
             fi
         done
-        if [ "${is_valid_plugin}" -eq "1" ]; then
+        if [ "${is_valid_plugin}" -eq 1 ]; then
             filtered_plugins="${filtered_plugins} ${candidate_plugin}"
         elif [ "${warn_unknown}" = "warn" ]; then
             printf "  [⚠️] Unknown plugin '%s', skipping.\n" "${candidate_plugin}" >&2
@@ -2691,6 +2749,7 @@ pihole_munin_filter_valid_plugins() {
 ###############################################################################
 # Print Valid Plugins (with warning for unknowns)
 ###############################################################################
+
 pihole_munin_valid_plugins() {
     pihole_munin_filter_valid_plugins "$plugins" "warn"
 }
@@ -2698,8 +2757,9 @@ pihole_munin_valid_plugins() {
 ###############################################################################
 # Validate Input Plugins
 ###############################################################################
-# # Normalises and filters input plugin list
+# Normalises and filters input plugin list
 ###############################################################################
+
 pihole_munin_validate_input_plugins() {
     input_plugins=$(pihole_munin_normalise_plugins "${1}")
     pihole_munin_filter_valid_plugins "$input_plugins" "warn"
@@ -2708,12 +2768,13 @@ pihole_munin_validate_input_plugins() {
 ###############################################################################
 # Root Privilege Helper
 ###############################################################################
-# # Re-executes script as root if needed
+# Re-executes script as root if needed
 ###############################################################################
+
 pihole_munin_root() {
-    if [ "$(id -u)" -ne "0" ]; then
+    if [ "$(id -u)" -ne 0 ]; then
         if command -v sudo >/dev/null 2>&1; then
-            printf "%s\n" "  [🛡️] Acquiring root privileges..."
+            printf "%s\n" "  [🛡️] Acquiring root privileges…"
             exec sudo "$(command -v -- "${script_path}")" "$@" || {
                 printf "%s\n" "  [❌] Failed to acquire root privileges." >&2
                 exit 1
@@ -2731,6 +2792,7 @@ rfc3339_timestamp=$(date --rfc-3339=seconds)
 ###############################################################################
 # Obligatory Obnoxious ASCII (and Unicode Emoji) Header
 ###############################################################################
+
 pihole_munin_header() {
     printf "%b\n%b\n%b\n%b\n%b\n%b\n\n%b\n\n%b\n\n" \
         "${TEXT_RED}          _  _             _                                     _${TEXT_RESET}" \
@@ -2746,8 +2808,9 @@ pihole_munin_header() {
 ###############################################################################
 # Parse install arguments
 ###############################################################################
-# # Sets dry_run, plugins list, and custom path options
+# Sets dry_run, plugins list, and custom path options
 ###############################################################################
+
 parse_install_args() {
     dry_run="0"
     plugins_arg=""
@@ -2786,48 +2849,45 @@ parse_install_args() {
     fi
     # If custom_path is set, override plugins_available and related paths
     if [ -n "${custom_path}" ]; then
-        # Remove any duplicate and trailing slashes from custom_path
-        custom_path=$(printf "%s" "${custom_path}" | sed -E 's:/+:/:g; s:/*$::')
         plugins_available="${custom_path}"
         pihole_munin_path="${plugins_available}/pihole_munin_"
     fi
 }
 
 ###############################################################################
+# Safe Path Normalization
+###############################################################################
+# Cleans up paths by removing duplicate slashes and trailing slashes
+###############################################################################
+
+pihole_munin_safe_path() {
+    printf "%s" "$1" | sed -E 's:/+:/:g; s:/*$::'
+}
+
+###############################################################################
 # Directory Setup
 ###############################################################################
-plugins_available="${PLUGINS_AVAILABLE:-/usr/share/munin/plugins}"
-plugins_enabled="${PLUGINS_ENABLED:-/etc/munin/plugins}"
-plugins_config="${PLUGINS_CONFIG:-/etc/munin/plugin-conf.d}"
+
+plugins_available="$(pihole_munin_safe_path "${PLUGINS_AVAILABLE:-/usr/share/munin/plugins}")"
+plugins_enabled="$(pihole_munin_safe_path "${PLUGINS_ENABLED:-/etc/munin/plugins}")"
+plugins_config="$(pihole_munin_safe_path "${PLUGINS_CONFIG:-/etc/munin/plugin-conf.d}")"
 pihole_munin_path="${plugins_available}/pihole_munin_"
 
 pihole_munin_user="${SUDO_USER:-$USER}"
 pihole_munin_host="$(hostname)"
 
 ###############################################################################
-# Install Plugin
+# Required Directory Check Helper
 ###############################################################################
-# # Copies plugin, cleans up, enables symlinks, prints info
+# Usage: pihole_munin_check_required_dirs <dir1> <dir2> …
+# Prints status and exits if any directory is missing.
 ###############################################################################
-pihole_munin_install() {
-    pihole_munin_header
-    shift 2  # Skip first two arguments (if any)
-    parse_install_args "$@"
-    plugins_to_clean="0"
-    # Ensure custom plugins_available directory exists if set
-    if [ ! -d "${plugins_available}" ]; then
-        if [ "${dry_run}" -eq "0" ]; then
-            mkdir -p "${plugins_available}" || {
-                printf "%s\n" "  [❌] Failed to create directory '${plugins_available}'." >&2
-                exit 1
-            }
-        fi
-    fi
-    printf "  %s Checking required directories...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[🗂️]" || printf "[🗂️] (DRY RUN)")"
-    required_dirs="${plugins_available} ${plugins_enabled} ${plugins_config}"
-    # Check each required directory exists
-    for required_dir in ${required_dirs}; do
+
+pihole_munin_check_required_dirs() {
+    dry_run="${dry_run:-0}"
+    printf "  %s Checking required directories…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[🗂️]" || printf "[🗂️] (DRY RUN)" )"
+    for required_dir in "$@"; do
         [ -d "${required_dir}" ] || {
             printf "%s\n" "  [❌] Missing directory '${required_dir}'." >&2
             exit 1
@@ -2835,11 +2895,67 @@ pihole_munin_install() {
         printf "%b\n" "       ${TEXT_LIGHTBLUE}${required_dir}${TEXT_RESET}"
     done
     printf "\n  %s Success.\n\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
-    printf "  %s Installing pihole_munin_...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[🟢]" || printf "[🟢] (DRY RUN)")"
+        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+}
+
+###############################################################################
+# Plugin File Check Helper
+###############################################################################
+# Checks if the plugin file exists, exits with error if it doesn't
+###############################################################################
+
+pihole_munin_check_plugin_file() {
+    dry_run="${dry_run:-0}"
+    printf "  %s Checking plugin file…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[📄]" || printf "[📄] (DRY RUN)")"
+    [ -f "${pihole_munin_path}" ] || {
+        printf "%s\n" "  [❌] Plugin file '${pihole_munin_path}' does not exist." >&2
+        exit 1
+    }
+    printf "%b\n\n  %s Success.\n\n" \
+        "       ${TEXT_GREEN}${pihole_munin_path}${TEXT_RESET}" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+}
+
+###############################################################################
+# Restart Suggestion
+###############################################################################
+# Suggests restarting Munin node
+###############################################################################
+
+pihole_munin_restart_node_suggestion() {
+    printf "\n%s\n\n%s\n%b\n\n" \
+        "  [ℹ️] Please restart the Munin node." \
+        "  Example:" \
+        "    ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ systemctl restart munin-node.service"
+}
+
+###############################################################################
+# Install Plugin
+###############################################################################
+# Copies plugin, cleans up, enables symlinks, prints info
+###############################################################################
+
+pihole_munin_install() {
+    pihole_munin_header
+    shift 2  # Skip first two arguments (if any)
+    parse_install_args "$@"
+    plugins_to_clean="0"
+    # Ensure custom plugins_available directory exists if set
+    if [ ! -d "${plugins_available}" ]; then
+        if [ "${dry_run}" -eq 0 ]; then
+            mkdir -p "${plugins_available}" || {
+                printf "%s\n" "  [❌] Failed to create directory '${plugins_available}'." >&2
+                exit 1
+            }
+        fi
+    fi
+    # Check for required directories
+    pihole_munin_check_required_dirs "${plugins_available}" "${plugins_enabled}" "${plugins_config}"
+    printf "  %s Installing pihole_munin_…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[⚪]" || printf "[⚪] (DRY RUN)")"
     # Copy plugin and set permissions unless dry run
-    if [ "${dry_run}" -eq "0" ]; then
+    if [ "${dry_run}" -eq 0 ]; then
         cp -f "${script_path}" "${pihole_munin_path}" || {
             printf "%s\n" "  [❌] Failed to copy plugin." >&2
             exit 1
@@ -2851,7 +2967,7 @@ pihole_munin_install() {
     fi
     printf "%b\n\n  %s Success.\n" \
         "       ${TEXT_GREEN}${pihole_munin_path}${TEXT_RESET}" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
     # Check for old plugin symlinks to clean
     for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
         [ ! -e "${plugin_to_clean}" ] && continue
@@ -2861,27 +2977,29 @@ pihole_munin_install() {
     done
     # Remove old plugin symlinks if needed
     if [ "$plugins_to_clean" -eq 1 ]; then
-        printf "\n  %s Cleaning plugin directory...\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
+        printf "\n  %s Cleaning plugin directory…\n" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
         for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
             [ ! -e "${plugin_to_clean}" ] && continue
             [ "${plugin_to_clean}" = "${plugins_enabled}/pihole_munin_" ] && continue
             printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugin_to_clean}${TEXT_RESET}"
-            if [ "$dry_run" -eq "0" ]; then
+            if [ "$dry_run" -eq 0 ]; then
                 rm -f "${plugin_to_clean}" || {
                     printf "%s\n" "  [❌] Failed to remove plugin '${plugin_to_clean}'\n" >&2
                     exit 1
                 }
             fi
         done
-        printf "\n  %s Success.\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        printf "\n  %s Success.\n\n" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
     fi
+    # Check plugin file exists
+    pihole_munin_check_plugin_file
     # Enable plugins by creating symlinks
-    printf "\n  %s Enabling pihole_munin_ plugins...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[🟢]" || printf "[🟢] (DRY RUN)" )"
+    printf "  %s Enabling pihole_munin_ plugins…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[🟢]" || printf "[🟢] (DRY RUN)" )"
     for plugin in ${plugins}; do
-        if [ "${dry_run}" -eq "0" ]; then
+        if [ "${dry_run}" -eq 0 ]; then
             ln -sf "${pihole_munin_path}" "${plugins_enabled}/pihole_munin_${plugin}" || {
                 printf "%s\n" "  [❌] Failed to create symlink '${plugins_enabled}/pihole_munin_${plugin}'." >&2
                 exit 1
@@ -2889,16 +3007,12 @@ pihole_munin_install() {
         fi
         printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugins_enabled}/pihole_munin_${plugin}${TEXT_RESET}"
     done
-    # Print instructions and success message
-    if [ "${dry_run}" -eq "0" ]; then
-        printf "\n%s\n\n%s\n\n%s\n%b\n" \
-            "  [✅] Success." \
-            "  [ℹ️] Please restart the Munin node." \
-            "  Example:" \
-            "    ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ systemctl restart munin-node.service"
+    printf "\n  %s Success.\n\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+    if [ "${dry_run}" -eq 0 ]; then
         # Suggest adding plugin to PATH if not present
         if ! printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
-            printf "\n%s\n%s\n\n%s\n%b\n\n%s\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
+            printf "%s\n%s\n\n%s\n%b\n\n%s\n\n%s\n%s\n\n%s\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
                 "  [ℹ️] You can add '${pihole_munin_path}'" \
                 "       to your \$PATH to run the pihole_munin_ as a regular command." \
                 "  Example:" \
@@ -2913,16 +3027,17 @@ pihole_munin_install() {
                 "       This will add pihole_munin_ to your \$PATH in all future terminal" \
                 "       sessions."
         fi
-    else
-        printf "\n%s\n" "  [✅] (DRY RUN) Success."
+        # Suggest restarting munin-node
+        pihole_munin_restart_node_suggestion
     fi
 }
 
 ###############################################################################
 # Flush Plugin State Files
 ###############################################################################
-# # Accepts optional -D, dry, or --dry-run argument
+# Accepts optional -D, dry, or --dry-run argument
 ###############################################################################
+
 pihole_munin_flush() {
     dry_run="0"
     # Parse options for dry run
@@ -2933,20 +3048,17 @@ pihole_munin_flush() {
                 ;;
         esac
     done
-    # Check state directory exists
-    if [ ! -d "${pihole_munin_plugstate}" ]; then
-        printf "%s\n" "  [❌] Missing directory '${pihole_munin_plugstate}'." >&2
-        exit 1
-    fi
+    # Check for required directories
+    pihole_munin_check_required_dirs "${pihole_munin_plugstate}"
     statefiles=$(find "${pihole_munin_plugstate}" -maxdepth 1 -type f -name 'pihole_munin_*.state' 2>/dev/null)
     if [ -z "${statefiles}" ]; then
         printf "%s\n" "  [ℹ️] No state files to flush in '${pihole_munin_plugstate}'."
     else
-        printf "\n  %s Flushing plugin state directory...\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
+        printf "\n  %s Flushing plugin state files…\n" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
         for statefile_to_flush in ${statefiles}; do
             printf "%b\n" "       ${statefile_to_flush}"
-            if [ "$dry_run" -eq "0" ]; then
+            if [ "$dry_run" -eq 0 ]; then
                 rm -f "${statefile_to_flush}" || {
                     printf "%s\n" "  [❌] Failed to remove statefile '${statefile_to_flush}'" >&2
                     exit 1
@@ -2954,7 +3066,7 @@ pihole_munin_flush() {
             fi
         done
         printf "\n  %s Success.\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+            "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
     fi
 }
 
@@ -2962,22 +3074,23 @@ pihole_munin_flush() {
 # Uninstall Plugin
 ###############################################################################
 # Disables plugins, removes plugin file if safe, prints info
+# Accepts optional -D, dry, or --dry-run argument
+# and optional -P, path, or --plugins-path <custom_path> argument
+# and optional list of plugins to uninstall
 ###############################################################################
+
 pihole_munin_uninstall() {
     pihole_munin_header
     shift 2
     parse_install_args "$@"
-    printf "  %s Disabling pihole_munin_ plugins...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[🔴]" || printf "[🔴] (DRY RUN)" )"
-    # Check enabled plugins directory exists
-    [ -d "${plugins_enabled}" ] || {
-        printf "%s\n" "  [❌] Missing directory '${plugins_enabled}'." >&2
-        exit 1
-    }
+    # Check for required directories
+    pihole_munin_check_required_dirs "${plugins_available}" "${plugins_enabled}"
+    printf "  %s Disabling pihole_munin_ plugins…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[🔴]" || printf "[🔴] (DRY RUN)" )"
     # Remove symlinks for each plugin
     for plugin in ${plugins}; do
         if [ -L "${plugins_enabled}/pihole_munin_${plugin}" ]; then
-            if [ "${dry_run}" -eq "0" ]; then
+            if [ "${dry_run}" -eq 0 ]; then
                 rm -f "${plugins_enabled}/pihole_munin_${plugin}" || {
                     printf "%s\n" "  [❌] Failed to remove symlink '${plugins_enabled}/pihole_munin_${plugin}'." >&2
                     exit 1
@@ -2986,45 +3099,42 @@ pihole_munin_uninstall() {
             printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugins_enabled}/pihole_munin_${plugin}${TEXT_RESET}"
         fi
     done
-    printf "\n  %s Success.\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
-    # Check available plugins directory and plugin file exist
-    [ -d "${plugins_available}" ] || {
-        printf "%s\n" "  [❌] Missing directory '${plugins_available}'." >&2
-        exit 1
-    }
-    [ -f "${pihole_munin_path}" ] || {
-        printf "%s\n" "  [❌] Plugin file '${pihole_munin_path}' does not exist." >&2
-        exit 1
-    }
+    printf "\n  %s Success.\n\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
     # Count remaining symlinks
     symlink_count=$(find "${plugins_enabled}" -type l -name 'pihole_munin_*' | wc -l)
     if [ "${symlink_count}" -eq 0 ]; then
+        # Check plugin file exists
+        pihole_munin_check_plugin_file
         # Remove plugin file if no symlinks remain
-        if [ "${dry_run}" -eq "0" ]; then
-            printf "%s\n" "  [🔴] Uninstalling pihole_munin_..."
+        printf "  %s Uninstalling pihole_munin_…\n" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[🗑️]" || printf "[🗑️] (DRY RUN)")"
+        if [ "${dry_run}" -eq 0 ]; then
             rm -f "${pihole_munin_path}" || {
-                printf "%s\n" "  [❌] Failed to remove '${pihole_munin_path}'." >&2
+                printf "%s\n" "  [❌] Failed to remove plugin file." >&2
                 exit 1
             }
-        else
-            printf "%s\n" "  [🔴] (DRY RUN) Uninstalling pihole_munin_..."
         fi
-        printf "%b\n\n  %s Success.\n" \
+        # Print uninstall success message
+        printf "%b\n\n  %s Success.\n\n" \
             "       ${TEXT_GREEN}${pihole_munin_path}${TEXT_RESET}" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
-        # Advise user to remove plugin from PATH if present
-        if printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
-            printf "%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n" \
-                "  [⚠️] Your \$PATH contains '${pihole_munin_path}'." \
-                "       To remove it permanently, edit your shell profile" \
-                "       (e.g. ~/.bashrc or ~/.profile) and remove any line that adds" \
-                "       '${pihole_munin_path}' to your \$PATH." \
-                "       Then restart your terminal or source the file." \
-                "  Example:" \
-                "  ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ source ~/.bashrc" \
-                "       This will remove pihole_munin_ from your \$PATH in all future terminal" \
-                "       sessions."
+            "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        if [ "${dry_run}" -eq 0 ]; then
+            # Advise user to remove plugin from PATH if present
+            if printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
+                printf "%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n" \
+                    "  [⚠️] Your \$PATH contains '${pihole_munin_path}'." \
+                    "       To remove it permanently, edit your shell profile" \
+                    "       (e.g. ~/.bashrc or ~/.profile) and remove any line that adds" \
+                    "       '${pihole_munin_path}' to your \$PATH." \
+                    "       Then restart your terminal or source the file." \
+                    "  Example:" \
+                    "  ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ source ~/.bashrc" \
+                    "       This will remove pihole_munin_ from your \$PATH in all future terminal" \
+                    "       sessions."
+            fi
+            # Suggest restarting munin-node
+            pihole_munin_restart_node_suggestion
         fi
     else
         # If symlinks remain, do not remove plugin file
@@ -3039,6 +3149,7 @@ pihole_munin_uninstall() {
 ###############################################################################
 # Safely run a write command, print error if it fails
 ###############################################################################
+
 pihole_munin_safe_write() {
     "$@" || { printf "%s\n" "  [❌] Failed to write to temporary file." >&2; return 1; }
 }
@@ -3048,6 +3159,7 @@ pihole_munin_safe_write() {
 ###############################################################################
 # Safely run a move command, print error if it fails
 ###############################################################################
+
 pihole_munin_safe_move() {
     "$@" || { printf "%s\n" "  [❌] Failed to move temporary file." >&2; return 1; }
 }
@@ -3057,6 +3169,7 @@ pihole_munin_safe_move() {
 ###############################################################################
 # Reads input from user, masks with '*' (for passwords)
 ###############################################################################
+
 pihole_munin_mask_input() {
     input=""
     IFS='
@@ -3100,6 +3213,7 @@ pihole_munin_mask_input() {
 ###############################################################################
 # Prompt for masked input twice, confirm they match
 ###############################################################################
+
 pihole_munin_safe_prompt() {
     printf "\nEnter value: "
     first_entry=$(pihole_munin_mask_input)
@@ -3116,6 +3230,7 @@ pihole_munin_safe_prompt() {
 ###############################################################################
 # Create a temporary file, print error if it fails
 ###############################################################################
+
 pihole_munin_mktemp() {
     mktemp_dir="${1:-/tmp}"
     mktemp_prefix="${2:-pihole_munin_}"
@@ -3131,6 +3246,7 @@ pihole_munin_mktemp() {
 ###############################################################################
 # Configure Munin plugin, list/add/remove config variables
 ###############################################################################
+
 pihole_munin_configure() {
     config_file="${plugins_config}/pihole_munin_"
     [ -n "${PIHOLE_MUNIN_CONF}" ] && config_file="${PIHOLE_MUNIN_CONF}"
@@ -3144,7 +3260,7 @@ pihole_munin_configure() {
         "list")
             # List config variables in the config file
             [ -f "${config_file}" ] || { printf "%s\n" "  [❌] Configuration file not found." >&2; exit 1; }
-            printf  "%s\n" "  [🔍] Listing variables in '${config_file}'..."
+            printf  "%s\n" "  [🔍] Listing variables in '${config_file}'…"
             matches=$(grep -E '^( *env\.| *user\s| *group\s)' "${config_file}")
             [ -z "${matches}" ] && { printf "\n%s\n" "  [ℹ️] No config variables found in '${config_file}'."; exit 0; }
             printf "%s\n" "${matches}" | while IFS= read -r config_line; do
@@ -3184,7 +3300,7 @@ pihole_munin_configure() {
                 fi
                 trimmed_value="${valid_only}"
             fi
-            printf "%s\n" "  [➕] Adding variable to '${config_file}'..."
+            printf "%s\n" "  [➕] Adding variable to '${config_file}'…"
             # Handle sensitive variables (passwords)
             case "${add_var}" in
                 "pihole_password")
@@ -3248,7 +3364,7 @@ pihole_munin_configure() {
         "remove")
             # Remove a variable from the config file
             [ -z "${1}" ] && { printf "  [❌] No variable specified for removal.\n" >&2; exit 1; }
-            printf "%s\n" "  [➖] Removing variable from '${config_file}'..."
+            printf "%s\n" "  [➖] Removing variable from '${config_file}'…"
             remove_var="${1}"
             case "${remove_var}" in
                 "user")  pattern='^ *user[[:space:]]' ;;
@@ -3282,6 +3398,7 @@ pihole_munin_configure() {
 # Compares two version strings (major.minor.patch)
 # Returns 0 if first version is newer or equal, 1 otherwise
 ###############################################################################
+
 pihole_munin_check() {
     IFS=. read -r a b c <<EOF
 ${1:-0.0.0}
@@ -3301,6 +3418,7 @@ EOF
 ###############################################################################
 # Print plugin version and check for updates
 ###############################################################################
+
 pihole_munin_version() {
     skip_check="0"
     # Parse options
@@ -3317,10 +3435,10 @@ pihole_munin_version() {
     done
     printf "%s\n" "  [📦] Version: ${pihole_munin_version}"
     # If not skipping, check for updates using dig
-    if [ "${skip_check}" -eq "0" ] && command -v dig >/dev/null 2>&1; then
+    if [ "${skip_check}" -eq 0 ] && command -v dig >/dev/null 2>&1; then
         # Check for updates from a TXT record at sainternet.xyz using dig
         remote_version=$(dig +short TXT pihole-munin.sainternet.xyz | sed -e 's/[^.0-9]//g')
-        printf "\n%s\n" "  [🔄] Checking for updates..."
+        printf "\n%s\n" "  [🔄] Checking for updates…"
         if [ -n "${remote_version}" ]; then
             if pihole_munin_check "${remote_version}" "${pihole_munin_version}"; then
                 # Remote version is newer
@@ -3351,6 +3469,7 @@ datetime_timestamp=$(date +%Y-%m-%d-%H-%M-%S)
 ###############################################################################
 # Update the pihole_munin_ plugin from GitHub
 ###############################################################################
+
 pihole_munin_update() {
     pihole_munin_header
     repo_url="github.com/saint-lascivious/pihole_munin_"
@@ -3364,15 +3483,14 @@ pihole_munin_update() {
                 ;;
         esac
     done
-    # Check if plugin file exists
-    [ -f "${pihole_munin_path}" ] || {
-        printf "%s\n" "  [❌] Update target '${pihole_munin_path}' not found." >&2
-        exit 1
-    }
-    # Create a temporary file for the download
+   # Check for required directories
+    pihole_munin_check_required_dirs "${plugins_available}" "${plugins_enabled}" "${pihole_munin_plugstate}"
+     # Create a temporary file for the download
     tmp_file=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "pihole_munin_update")
-    printf "  %s Fetching pihole_munin_ from %s...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[⬇️]" || printf "[⬇️] (DRY RUN)" )" \
+    # Check plugin file exists
+    pihole_munin_check_plugin_file
+    printf "  %s Fetching pihole_munin_ from %s…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[⬇️]" || printf "[⬇️] (DRY RUN)" )" \
         "${repo_url}"
     # Download the latest script
     if curl -fsSL "${raw_url}" -o "${tmp_file}"; then
@@ -3387,8 +3505,9 @@ pihole_munin_update() {
             rm -f "${tmp_file}"
             exit 1
         }
-        printf "  %s Success.\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        printf "%b\n\n  %s Success.\n\n" \
+            "       ${TEXT_GREEN}${tmp_file}${TEXT_RESET}" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
         # Extract version numbers from local and remote scripts
         remote_version=$(grep -E '^version=' "${tmp_file}" | cut -d= -f2)
         local_version=$(grep -E '^version=' "${pihole_munin_path}" | cut -d= -f2)
@@ -3408,8 +3527,8 @@ pihole_munin_update() {
         else
             remote_version_display="invalid"
         fi
-        printf "\n  %s Checking versions...\n%s\n%s\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[🔄]" || printf "[🔄] (DRY RUN)" )" \
+        printf "  %s Checking versions…\n%s\n%s\n" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[🔄]" || printf "[🔄] (DRY RUN)" )" \
             "       local version: ${local_version_display}" \
             "       remote version: ${remote_version_display}"
         # Warn if version strings are invalid or unknown
@@ -3428,7 +3547,7 @@ pihole_munin_update() {
                 read -r answer
                 case "${answer}" in
                     [yY]|[yY][eE][sS])
-                        printf "\n%s\n\n" "  [🚀] Proceeding with update..."
+                        printf "\n%s\n\n" "  [🚀] Proceeding with update…"
                         ;;
                     *)
                         printf "%b\n" "  [❌] ${TEXT_RED}Aborted by user (interactive session).${TEXT_RESET}" >&2
@@ -3452,9 +3571,9 @@ pihole_munin_update() {
             fi
         fi
         # Backup current plugin
-        printf "\n  %s\n" "%s Backing up '${pihole_munin_path}'..." \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[🗄️]" || printf "[🗄️] (DRY RUN)" )"
-        if [ "${dry_run}" -eq "0" ]; then
+        printf "\n  %s\n" "%s Backing up '${pihole_munin_path}'…" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[🗄️]" || printf "[🗄️] (DRY RUN)" )"
+        if [ "${dry_run}" -eq 0 ]; then
             cp -f "${pihole_munin_path}" "${bak_file}" || {
                 printf "%s\n" "  [❌] Failed to back up existing script." >&2
                 rm -f "${tmp_file}"
@@ -3472,26 +3591,27 @@ pihole_munin_update() {
                 "  [✅] (DRY RUN) Success."
         fi
         # Install update
-        printf "\n  %s Installing update...\n" \
-            "$( [ "${dry_run}" -eq "0" ] && printf "[🟢]" || printf "[🟢] (DRY RUN)")"
+        printf "\n  %s Installing update…\n" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[🛠️]" || printf "[🛠️] (DRY RUN)")"
         chmod 755 "${tmp_file}" || {
             printf "%s\n" "  [❌] Failed to set permissions on update." >&2
             rm -f "${tmp_file}"
             exit 1
         }
-        if [ "${dry_run}" -eq "0" ]; then
+        if [ "${dry_run}" -eq 0 ]; then
             mv "${tmp_file}" "${pihole_munin_path}" || {
                 printf "%s\n" "  [❌] Failed to install updated plugin." >&2
                 rm -f "${tmp_file}"
                 exit 1
             }
-            printf "\n%s\n\n%s\n\n%s\n%b\n" \
-                "  [✅] Success." \
-                "  [ℹ️] Please restart the Munin node." \
-                "  Example:" \
-                "    ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ systemctl restart munin-node.service"
-        else
-            printf "\n%s\n" "  [✅] (DRY RUN) Success."
+        fi
+        # Print update success message
+        printf "%b\n\n  %s Success.\n\n" \
+            "       ${TEXT_GREEN}${pihole_munin_path}${TEXT_RESET}" \
+            "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        if [ "${dry_run}" -eq 0 ]; then
+            # Suggest restarting munin-node
+            pihole_munin_restart_node_suggestion
         fi
     else
         # Download failed
@@ -3506,6 +3626,7 @@ pihole_munin_update() {
 ###############################################################################
 # Test all enabled pihole_munin_ plugins using munin-run
 ###############################################################################
+
 pihole_munin_test() {
     # Check for munin-run command
     if ! command -v munin-run >/dev/null 2>&1; then
@@ -3531,14 +3652,14 @@ pihole_munin_test() {
                 ;;
         esac
     done
-    printf "\n  %s Testing pihole_munin_ plugins...\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[🧪]" || printf "[🧪] (DRY RUN)")"
-    if [ "${dry_run}" -eq "0" ]; then
+    printf "\n  %s Testing pihole_munin_ plugins…\n" \
+        "$( [ "${dry_run}" -eq 0 ] && printf "[🧪]" || printf "[🧪] (DRY RUN)")"
+    if [ "${dry_run}" -eq 0 ]; then
         # Actually run munin-run for each plugin
         for plugin in $(pihole_munin_valid_plugins); do
-            if [ "${verbose}" -eq "1" ]; then
+            if [ "${verbose}" -eq 1 ]; then
                 munin_run_cmd="munin-run pihole_munin_${plugin}"
-                [ "${trace}" -eq "1" ] && munin_run_cmd="$munin_run_cmd --debug"
+                [ "${trace}" -eq 1 ] && munin_run_cmd="$munin_run_cmd --debug"
                 if ! eval "$munin_run_cmd config"; then
                     printf "%s\n" "  [❌] 'config' failed for plugin '${plugin}'."
                     exit 1
@@ -3570,7 +3691,7 @@ pihole_munin_test() {
         done
     fi
     printf "\n  %s Success.\n" \
-        "$( [ "${dry_run}" -eq "0" ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
 }
 
 ###############################################################################
@@ -3582,6 +3703,7 @@ pihole_munin_test() {
 # If a command is given, prints help for that command.
 # If a subcommand is given, prints help for that subcommand.
 ###############################################################################
+
 pihole_munin_help() {
     case "${1}" in
         "-a"|"admin"|"--admin")
@@ -3600,7 +3722,7 @@ pihole_munin_help() {
                     ;;
                 "-i"|"install"|"--install")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n" \
-                        "  [❓] ${script_path} ${1} ${2} [<plugin> ...] [<option>]" \
+                        "  [❓] ${script_path} ${1} ${2} [<plugin> …] [<option>]" \
                         "       Install pihole_munin_ and enable plugins." \
                         "  [ℹ️] This command will install pihole_munin_ and enable the specified plugins." \
                         "       If no plugins are specified, all valid plugins will be enabled." \
@@ -3642,7 +3764,7 @@ pihole_munin_help() {
                     ;;
                 "-u"|"uninstall"|"--uninstall")
                     printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n" \
-                        "  [❓] ${script_path} ${1} ${2} [<plugin> ...] [<option>]" \
+                        "  [❓] ${script_path} ${1} ${2} [<plugin> …] [<option>]" \
                         "       Disable plugins and uninstall pihole_munin_." \
                         "  [ℹ️] This command will remove the specified plugins from the Munin node." \
                         "       If no plugins are specified pihole_munin_ will be uninstalled." \
@@ -3829,7 +3951,7 @@ if [ -n "${help_flag}" ] && [ "${1}" != "${help_flag}" ]; then
     new_arguments=""
     first="1"
     for argument; do
-        if [ "${first}" -eq "1" ] && [ "${argument}" = "${help_flag}" ]; then
+        if [ "${first}" -eq 1 ] && [ "${argument}" = "${help_flag}" ]; then
             first="0"
             continue
         fi
@@ -3841,6 +3963,7 @@ fi
 ###############################################################################
 # Redeploy and Dispatch as Root User (if needed)
 ###############################################################################
+
 case "${1}" in
     "-a"|"admin"|"--admin")
         case "${2}" in
@@ -3866,6 +3989,7 @@ esac
 ###############################################################################
 # Main Command Dispatch
 ###############################################################################
+
 case "${1}" in
     "-a"|"admin"|"--admin")
         case "${2}" in

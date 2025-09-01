@@ -921,18 +921,52 @@ trap pihole_munin_abort_handler INT TERM
 ###############################################################################
 # Munin Field Output Helper
 ###############################################################################
+# Usage:
+#   pihole_munin_print <key> <colour> <crit> <draw> <graph> <info> <label> <max> <min> <type> <warn>
+#
+# Description:
+#   Outputs Munin field configuration lines for a single metric key, validating
+#   and formatting each attribute as required by Munin's plugin protocol.
+#   This function is used to generate the config output for each field in a
+#   Munin graph, supporting customisation via environment variables.
+#
 # Arguments:
-#   $1  key_val   - Field name
-#   $2  colour_val
-#   $3  crit_val
-#   $4  draw_val
-#   $5  graph_val
-#   $6  info_val
-#   $7  label_val
-#   $8  max_val
-#   $9  min_val
-#   $10 type_val
-#   $11 warn_val
+#   $1  key_val     - Field name (alphanumeric/underscore, required)
+#   $2  colour_val  - Hex colour code (3/6 digits, optional)
+#   $3  crit_val    - Critical threshold (number or range, optional)
+#   $4  draw_val    - Draw style (LINE[n], AREA, STACK, etc., optional)
+#   $5  graph_val   - Graph flag ("yes"/"no", optional)
+#   $6  info_val    - Info string (tooltip, optional)
+#   $7  label_val   - Label (legend, required, max 19 chars, no '#' or '\')
+#   $8  max_val     - Maximum value (number, optional)
+#   $9  min_val     - Minimum value (number, optional)
+#   $10 type_val    - Data type (GAUGE, COUNTER, DERIVE, ABSOLUTE, optional)
+#   $11 warn_val    - Warning threshold (number or range, optional)
+#
+# Validation:
+#   - key_val must match ^[a-zA-Z_][a-zA-Z0-9_]*$
+#   - label_val must not be empty, contain '#' or '\', and is truncated to 19 chars
+#   - colour_val accepts 3/6 digit hex (with/without '#'), expands 3 digits to 6
+#   - crit_val and warn_val accept single value or colon-separated range
+#   - draw_val must match Munin draw styles
+#   - graph_val must be "yes" or "no"
+#   - type_val must be one of GAUGE, COUNTER, DERIVE, ABSOLUTE
+#   - max_val and min_val must be numeric
+#
+# Output:
+#   Prints Munin config lines for each valid attribute, e.g.:
+#     <key>.colour <hex>
+#     <key>.critical <crit>
+#     <key>.draw <draw>
+#     <key>.graph <yes|no>
+#     <key>.info <info>
+#     <key>.label <label>
+#     <key>.max <max>
+#     <key>.min <min>
+#     <key>.type <type>
+#     <key>.warning <warn>
+#
+#   Invalid or missing required arguments cause an error and exit.
 ###############################################################################
 
 pihole_munin_print() {
@@ -995,9 +1029,9 @@ pihole_munin_print() {
     fi
     # Truncate label if too long for Munin (19 characters max)
     if [ "${#label_val}" -gt 19 ]; then
-        # Truncate to 18 characters and add ellipsis to indicate that the
+        # Truncate to 16 characters and add ellipsis to indicate that the
         # full label is available in the info string or is otherwise known
-        label_val="$(printf "%s" "${label_val}" | cut -c1-18)…"
+        label_val="$(printf "%s" "${label_val}" | cut -c1-16)..."
     fi
     # Output label (always required)
     printf "%s.label %s\n" "${key_val}" "${label_val}"
@@ -1043,8 +1077,26 @@ already_authed="0"                              # Flag: 1 already authed
 ###############################################################################
 # Authentication Check Function
 ###############################################################################
-# Checks if authentication is required by querying the API.
-# Sets auth_required and already_authed flags.
+# Usage:
+#   pihole_munin_auth_check
+#
+# Description:
+#   Determines if authentication is required for the Pi-hole API by sending a
+#   request to the authentication endpoint. Parses the HTTP response code and
+#   checks the session validity in the JSON response. Sets the global flags
+#   'auth_required' and 'already_authed' accordingly.
+#
+# Logic:
+#   - Sends a GET request to the API authentication endpoint.
+#   - Parses the response code:
+#       * 200: Checks if '.session.valid == true' in the JSON body.
+#              If valid, sets 'auth_required=0' and 'already_authed=1'.
+#       * 401: Indicates authentication is required; leaves flags unchanged.
+#       * Other: Prints error and exits.
+#
+# Output:
+#   - Sets 'auth_required' and 'already_authed' global variables.
+#   - Prints error and exits on unexpected response codes.
 ###############################################################################
 
 pihole_munin_auth_check() {
@@ -1085,6 +1137,24 @@ mkdir -p "${pihole_munin_plugstate}"   # Ensure state directory exists
 ###############################################################################
 # Authentication Function
 ###############################################################################
+# Usage:
+#   pihole_munin_auth
+#
+# Description:
+#   Authenticates with the Pi-hole API using the selected password. Supports
+#   session caching to avoid repeated authentication requests. If a valid cached
+#   session exists, it is reused; otherwise, a new session is requested.
+#
+# Logic:
+#   - Checks for a valid cached session if session_cache is enabled.
+#   - If no valid session, authenticates using the password.
+#   - On success, extracts and stores the session ID.
+#   - If session caching is enabled, saves session ID and timestamp to disk.
+#
+# Output:
+#   - Sets global variable 'pihole_munin_session_sid' with session ID.
+#   - Exits with error if authentication fails or no password is set.
+###############################################################################
 
 pihole_munin_auth() {
     pihole_munin_session_file="${pihole_munin_plugstate}/pihole_session.state"
@@ -1123,6 +1193,24 @@ pihole_munin_auth() {
 ###############################################################################
 # Logout Function
 ###############################################################################
+# Usage:
+#   pihole_munin_logout
+#
+# Description:
+#   Logs out the current Pi-hole API session by sending a DELETE request to the
+#   authentication endpoint. Skips logout if session caching is enabled or no
+#   session is active.
+#
+# Logic:
+#   - If no session ID or session caching is enabled, does nothing.
+#   - Sends DELETE request to API to invalidate the session.
+#   - Checks response code for success (200/204).
+#   - Prints error and exits if logout fails.
+#
+# Output:
+#   - Invalidates the current session if applicable.
+#   - Exits with error if logout fails.
+###############################################################################
 
 pihole_munin_logout() {
     [ -z "${pihole_munin_session_sid}" ] && return 0  # No session, nothing to do
@@ -1143,8 +1231,31 @@ pihole_munin_logout() {
 ###############################################################################
 # Safe Variable Evaluation Helper
 ###############################################################################
-# Usage: pihole_munin_safe_eval <outvar> <prefix> <field> <suffix> <default>
-# Sets <outvar> to the value of <prefix><field><suffix> or <default>.
+# Usage:
+#   pihole_munin_safe_eval <outvar> <prefix> <field> <suffix> <default>
+#
+# Description:
+#   Safely evaluates and sets a variable value from dynamically constructed
+#   variable names, supporting plugin-specific overrides and caching.
+#   If the constructed variable is unset or invalid, sets the output variable
+#   to the provided default value. Caches results for efficiency.
+#
+# Arguments:
+#   $1  outvar   - Name of output variable to set
+#   $2  prefix   - Prefix for variable name construction (e.g. "cache_")
+#   $3  field    - Main variable key (e.g. "evicted")
+#   $4  suffix   - Suffix for variable name construction (e.g. "_crit")
+#   $5  default  - Default value if variable is unset or invalid
+#
+# Logic:
+#   - If field is empty or contains invalid characters, sets output to default.
+#   - Constructs variable name as <prefix><field><suffix>.
+#   - Checks for cached value (_cache_<varname>); uses it if present.
+#   - Otherwise, sets output to value of constructed variable or default,
+#     and caches the result.
+#
+# Output:
+#   - Sets <outvar> to the resolved value or default.
 ###############################################################################
 
 pihole_munin_safe_eval() {
@@ -1204,8 +1315,30 @@ pihole_munin_api_url() {
 ###############################################################################
 # State Handler
 ###############################################################################
-# Usage: pihole_munin_state_handler <endpoint>
-# Caches API responses to disk for TTL, validates JSON.
+# Usage:
+#   pihole_munin_state_handler <endpoint>
+#
+# Description:
+#   Handles caching of API responses to disk for a given endpoint, reducing
+#   redundant API calls and improving efficiency. Validates cached responses
+#   as JSON and supports plugin-specific TTL overrides. If the cache is stale
+#   or invalid, fetches a fresh response from the API, saves it, and returns it.
+#
+# Arguments:
+#   $1  endpoint   - API endpoint to fetch and cache (e.g. "/info/metrics")
+#
+# Logic:
+#   - Builds a sanitized state file path for the endpoint.
+#   - If a valid cache file exists and is within TTL, returns cached JSON.
+#   - If cache is stale or invalid, removes it and fetches fresh data.
+#   - Handles authentication if required.
+#   - Validates API response as JSON before caching.
+#   - Saves new response to state file and returns it.
+#   - Logs out if authentication was performed and session caching is disabled.
+#
+# Output:
+#   - Prints valid JSON response for the endpoint.
+#   - Returns non-zero on error or invalid response.
 ###############################################################################
 
 pihole_munin_state_handler() {
@@ -1282,8 +1415,25 @@ graph_width="${graph_width:-"400"}"           # Graph width
 ###############################################################################
 # Graph Zero Helper
 ###############################################################################
-# Usage: pihole_munin_graph_zero <key>
-# Returns 0 if graph_zero for key is "yes", else 1.
+# Usage:
+#   pihole_munin_graph_zero <key>
+#
+# Description:
+#   Determines whether zero values should be graphed for a given key in Munin.
+#   Checks for a plugin-specific override (graph_zero_<key>), falling back to
+#   the global graph_zero setting if not set. Returns success (0) if enabled,
+#   otherwise failure (1).
+#
+# Arguments:
+#   $1  key   - The graph key to check for zeroing (e.g. "cache", "clients")
+#
+# Logic:
+#   - Checks for plugin-specific graph_zero override using safe_eval.
+#   - If set to "yes", returns 0 (true); otherwise returns 1 (false).
+#   - If not set, falls back to global graph_zero variable.
+#
+# Output:
+#   - Returns 0 if zero values should be graphed for the key, else 1.
 ###############################################################################
 
 pihole_munin_graph_zero() {
@@ -2212,6 +2362,32 @@ pihole_munin_config_upstreams() {
 ###############################################################################
 # Dependency Check Function
 ###############################################################################
+# Usage:
+#   pihole_munin_check_dependencies
+#
+# Description:
+#   Checks for the presence of required command-line dependencies needed by
+#   the plugin. Iterates through a list of required commands and verifies
+#   each is available in the system PATH. Prints an error and returns 1 if
+#   any dependency is missing.
+#
+# Dependencies Checked:
+#   - awk
+#   - curl
+#   - grep
+#   - jq
+#   - mktemp
+#   - sed
+#
+# Logic:
+#   - For each dependency, checks if the command exists.
+#   - If any dependency is missing, prints an error and returns 1.
+#   - If all dependencies are present, returns 0.
+#
+# Output:
+#   - Prints error message for each missing dependency.
+#   - Returns 1 if any dependency is missing, else 0.
+###############################################################################
 
 pihole_munin_check_dependencies() {
     plugin_dependencies="awk curl grep jq mktemp sed"  # List of required commands
@@ -2631,25 +2807,62 @@ pihole_munin_fetch_upstreams() {
 
 pihole_munin_fetch_handler() {
     case "${pihole_munin_plugin_id}" in
-        "cache")              pihole_munin_fetch_cache ;;
-        "cache_by_type")      pihole_munin_fetch_cache_by_type ;;
-        "clients")            pihole_munin_fetch_clients ;;
-        "dnsmasq")            pihole_munin_fetch_dnsmasq ;;
-        "domains")            pihole_munin_fetch_domains ;;
-        "frequency")          pihole_munin_fetch_frequency ;;
-        "gravity")            pihole_munin_fetch_gravity ;;
-        "overview")           pihole_munin_fetch_overview ;;
-        "percent")            pihole_munin_fetch_percent ;;
-        "privacy")            pihole_munin_fetch_privacy ;;
-        "queries")            pihole_munin_fetch_queries ;;
-        "queries_by_status")  pihole_munin_fetch_queries_by_status ;;
-        "queries_by_type")    pihole_munin_fetch_queries_by_type ;;
-        "replies")            pihole_munin_fetch_replies ;;
-        "replies_by_type")    pihole_munin_fetch_replies_by_type ;;
-        "status")             pihole_munin_fetch_status ;;
-        "unique")             pihole_munin_fetch_unique ;;
-        "upstreams")          pihole_munin_fetch_upstreams ;;
-        *)  # Unknown plugin ID
+        "cache")
+            pihole_munin_fetch_cache
+            ;;
+        "cache_by_type")
+            pihole_munin_fetch_cache_by_type
+            ;;
+        "clients")
+            pihole_munin_fetch_clients
+            ;;
+        "dnsmasq")
+            pihole_munin_fetch_dnsmasq
+            ;;
+        "domains")
+            pihole_munin_fetch_domains
+            ;;
+        "frequency")
+            pihole_munin_fetch_frequency
+            ;;
+        "gravity")
+            pihole_munin_fetch_gravity
+            ;;
+        "overview")
+            pihole_munin_fetch_overview
+            ;;
+        "percent")
+            pihole_munin_fetch_percent
+            ;;
+        "privacy")
+            pihole_munin_fetch_privacy
+            ;;
+        "queries")
+            pihole_munin_fetch_queries
+            ;;
+        "queries_by_status")
+            pihole_munin_fetch_queries_by_status
+            ;;
+        "queries_by_type")
+            pihole_munin_fetch_queries_by_type
+            ;;
+        "replies")
+            pihole_munin_fetch_replies
+            ;;
+        "replies_by_type")
+            pihole_munin_fetch_replies_by_type
+            ;;
+        "status")
+            pihole_munin_fetch_status
+            ;;
+        "unique")
+            pihole_munin_fetch_unique
+            ;;
+        "upstreams")
+            pihole_munin_fetch_upstreams
+            ;;
+        *)
+            # Unknown plugin ID
             printf "%s\n" "  [❌] Unable to fetch data for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
             exit 1
             ;;
@@ -2774,7 +2987,7 @@ pihole_munin_validate_input_plugins() {
 pihole_munin_root() {
     if [ "$(id -u)" -ne 0 ]; then
         if command -v sudo >/dev/null 2>&1; then
-            printf "%s\n" "  [🛡️] Acquiring root privileges…"
+            printf "%s\n" "  [🛡️] Acquiring root privileges …"
             exec sudo "$(command -v -- "${script_path}")" "$@" || {
                 printf "%s\n" "  [❌] Failed to acquire root privileges." >&2
                 exit 1
@@ -2885,7 +3098,7 @@ pihole_munin_host="$(hostname)"
 
 pihole_munin_check_required_dirs() {
     dry_run="${dry_run:-0}"
-    printf "  %s Checking required directories…\n" \
+    printf "  %s Checking required directories …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🗂️]" || printf "[🗂️] (DRY RUN)" )"
     for required_dir in "$@"; do
         [ -d "${required_dir}" ] || {
@@ -2906,7 +3119,7 @@ pihole_munin_check_required_dirs() {
 
 pihole_munin_check_plugin_file() {
     dry_run="${dry_run:-0}"
-    printf "  %s Checking plugin file…\n" \
+    printf "  %s Checking plugin file …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[📄]" || printf "[📄] (DRY RUN)")"
     [ -f "${pihole_munin_path}" ] || {
         printf "%s\n" "  [❌] Plugin file '${pihole_munin_path}' does not exist." >&2
@@ -2931,9 +3144,35 @@ pihole_munin_restart_node_suggestion() {
 }
 
 ###############################################################################
-# Install Plugin
+# Install Plugin Function
 ###############################################################################
-# Copies plugin, cleans up, enables symlinks, prints info
+# Usage:
+#   pihole_munin_install [<plugin> …] [<option>]
+#
+# Description:
+#   Installs the pihole_munin_ plugin and enables selected plugins by creating
+#   symlinks in the Munin plugins directory. Handles directory creation,
+#   cleans up old symlinks, sets permissions, and prints status messages.
+#   Supports dry run mode and custom plugin paths.
+#
+# Arguments:
+#   <plugin> …   - List of plugins to enable (optional, defaults to all valid)
+#   <option>     - Options:
+#                -D, dry, --dry-run         Show actions without making changes
+#                -P, path, --plugins-path   Specify custom plugins directory
+#
+# Logic:
+#   - Ensures required directories exist, creates if missing.
+#   - Copies plugin file and sets permissions (unless dry run).
+#   - Removes old plugin symlinks if present.
+#   - Enables plugins by creating symlinks.
+#   - Suggests adding plugin to PATH if not present.
+#   - Suggests restarting munin-node after install.
+#
+# Output:
+#   - Prints status and success/error messages.
+#   - Creates symlinks for enabled plugins.
+#   - Returns non-zero on error.
 ###############################################################################
 
 pihole_munin_install() {
@@ -2952,7 +3191,7 @@ pihole_munin_install() {
     fi
     # Check for required directories
     pihole_munin_check_required_dirs "${plugins_available}" "${plugins_enabled}" "${plugins_config}"
-    printf "  %s Installing pihole_munin_…\n" \
+    printf "  %s Installing pihole_munin_ …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[⚪]" || printf "[⚪] (DRY RUN)")"
     # Copy plugin and set permissions unless dry run
     if [ "${dry_run}" -eq 0 ]; then
@@ -2977,7 +3216,7 @@ pihole_munin_install() {
     done
     # Remove old plugin symlinks if needed
     if [ "$plugins_to_clean" -eq 1 ]; then
-        printf "\n  %s Cleaning plugin directory…\n" \
+        printf "\n  %s Cleaning plugin directory …\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
         for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
             [ ! -e "${plugin_to_clean}" ] && continue
@@ -2996,7 +3235,7 @@ pihole_munin_install() {
     # Check plugin file exists
     pihole_munin_check_plugin_file
     # Enable plugins by creating symlinks
-    printf "  %s Enabling pihole_munin_ plugins…\n" \
+    printf "  %s Enabling pihole_munin_ plugins …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🟢]" || printf "[🟢] (DRY RUN)" )"
     for plugin in ${plugins}; do
         if [ "${dry_run}" -eq 0 ]; then
@@ -3035,7 +3274,28 @@ pihole_munin_install() {
 ###############################################################################
 # Flush Plugin State Files
 ###############################################################################
-# Accepts optional -D, dry, or --dry-run argument
+# Usage:
+#   pihole_munin_flush [<option>]
+#
+# Description:
+#   Removes all cached plugin state files from the plugin state directory,
+#   forcing fresh API fetches on the next run. Supports dry run mode to
+#   preview actions without making changes.
+#
+# Arguments:
+#   <option>   - Options:
+#              -D, dry, --dry-run   Show actions without deleting files
+#
+# Logic:
+#   - Parses options for dry run mode.
+#   - Checks for required state directory.
+#   - Finds all plugin state files in the state directory.
+#   - If no state files are found, prints info message.
+#   - Otherwise, prints each file and removes it (unless dry run).
+#
+# Output:
+#   - Prints status and success/error messages.
+#   - Removes state files unless dry run is enabled.
 ###############################################################################
 
 pihole_munin_flush() {
@@ -3054,7 +3314,7 @@ pihole_munin_flush() {
     if [ -z "${statefiles}" ]; then
         printf "%s\n" "  [ℹ️] No state files to flush in '${pihole_munin_plugstate}'."
     else
-        printf "\n  %s Flushing plugin state files…\n" \
+        printf "\n  %s Flushing plugin state files …\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
         for statefile_to_flush in ${statefiles}; do
             printf "%b\n" "       ${statefile_to_flush}"
@@ -3071,12 +3331,34 @@ pihole_munin_flush() {
 }
 
 ###############################################################################
-# Uninstall Plugin
+# Uninstall Plugin Function
 ###############################################################################
-# Disables plugins, removes plugin file if safe, prints info
-# Accepts optional -D, dry, or --dry-run argument
-# and optional -P, path, or --plugins-path <custom_path> argument
-# and optional list of plugins to uninstall
+# Usage:
+#   pihole_munin_uninstall [<plugin> …] [<option>]
+#
+# Description:
+#   Disables selected pihole_munin_ plugins by removing their symlinks from the
+#   Munin plugins directory. If no symlinks remain, removes the plugin file itself.
+#   Handles dry run mode, custom plugin paths, and prints status messages.
+#
+# Arguments:
+#   <plugin> …   - List of plugins to uninstall (optional, defaults to all valid)
+#   <option>     - Options:
+#                -D, dry, --dry-run         Show actions without making changes
+#                -P, path, --plugins-path   Specify custom plugins directory
+#
+# Logic:
+#   - Checks for required directories.
+#   - Removes symlinks for each specified plugin.
+#   - If no symlinks remain, removes the plugin file.
+#   - Advises user to remove plugin from PATH if present.
+#   - Suggests restarting munin-node after uninstall.
+#   - If symlinks remain, does not remove plugin file to avoid breakage.
+#
+# Output:
+#   - Prints status and success/error messages.
+#   - Removes symlinks and plugin file as appropriate.
+#   - Returns non-zero on error.
 ###############################################################################
 
 pihole_munin_uninstall() {
@@ -3085,7 +3367,7 @@ pihole_munin_uninstall() {
     parse_install_args "$@"
     # Check for required directories
     pihole_munin_check_required_dirs "${plugins_available}" "${plugins_enabled}"
-    printf "  %s Disabling pihole_munin_ plugins…\n" \
+    printf "  %s Disabling pihole_munin_ plugins …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🔴]" || printf "[🔴] (DRY RUN)" )"
     # Remove symlinks for each plugin
     for plugin in ${plugins}; do
@@ -3107,7 +3389,7 @@ pihole_munin_uninstall() {
         # Check plugin file exists
         pihole_munin_check_plugin_file
         # Remove plugin file if no symlinks remain
-        printf "  %s Uninstalling pihole_munin_…\n" \
+        printf "  %s Uninstalling pihole_munin_ …\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🗑️]" || printf "[🗑️] (DRY RUN)")"
         if [ "${dry_run}" -eq 0 ]; then
             rm -f "${pihole_munin_path}" || {
@@ -3228,7 +3510,26 @@ pihole_munin_safe_prompt() {
 ###############################################################################
 # Make Temp
 ###############################################################################
-# Create a temporary file, print error if it fails
+# Usage:
+#   pihole_munin_mktemp [<dir>] [<prefix>]
+#
+# Description:
+#   Creates a temporary file in the specified directory with the given prefix.
+#   Tries different mktemp syntaxes for compatibility across systems.
+#   Prints an error and exits if unable to create the file.
+#
+# Arguments:
+#   <dir>    - Directory to create the temp file in (optional, default: /tmp)
+#   <prefix> - Prefix for the temp file name (optional, default: pihole_munin_)
+#
+# Logic:
+#   - Attempts to create a temp file using mktemp with directory and prefix.
+#   - Falls back to mktemp -t if the first method fails.
+#   - Prints error and exits if both methods fail.
+#
+# Output:
+#   - Prints the path to the created temp file.
+#   - Exits with error if creation fails.
 ###############################################################################
 
 pihole_munin_mktemp() {
@@ -3244,7 +3545,29 @@ pihole_munin_mktemp() {
 ###############################################################################
 # Configure Function
 ###############################################################################
-# Configure Munin plugin, list/add/remove config variables
+# Usage:
+#   pihole_munin_configure <command> [<args>]
+#
+# Description:
+#   Manages Munin plugin configuration variables. Supports listing, adding,
+#   and removing variables in the plugin config file. Handles sensitive
+#   variables securely and validates plugin lists.
+#
+# Arguments:
+#   <command>   - Action to perform: list, add, remove
+#   <args>      - Arguments for the command (variable name, value, etc.)
+#
+# Logic:
+#   - Uses plugins_config or PIHOLE_MUNIN_CONF for config file path.
+#   - Creates config file if missing.
+#   - "list": Lists all config variables, masking passwords.
+#   - "add": Adds or updates a variable, validates plugins, prompts for sensitive values.
+#   - "remove": Removes a variable from the config file.
+#   - Handles unknown commands with a warning.
+#
+# Output:
+#   - Prints status and success/error messages.
+#   - Updates the config file as appropriate.
 ###############################################################################
 
 pihole_munin_configure() {
@@ -3260,7 +3583,7 @@ pihole_munin_configure() {
         "list")
             # List config variables in the config file
             [ -f "${config_file}" ] || { printf "%s\n" "  [❌] Configuration file not found." >&2; exit 1; }
-            printf  "%s\n" "  [🔍] Listing variables in '${config_file}'…"
+            printf  "%s\n" "  [🔍] Listing variables in '${config_file}' …"
             matches=$(grep -E '^( *env\.| *user\s| *group\s)' "${config_file}")
             [ -z "${matches}" ] && { printf "\n%s\n" "  [ℹ️] No config variables found in '${config_file}'."; exit 0; }
             printf "%s\n" "${matches}" | while IFS= read -r config_line; do
@@ -3300,7 +3623,7 @@ pihole_munin_configure() {
                 fi
                 trimmed_value="${valid_only}"
             fi
-            printf "%s\n" "  [➕] Adding variable to '${config_file}'…"
+            printf "%s\n" "  [➕] Adding variable to '${config_file}' …"
             # Handle sensitive variables (passwords)
             case "${add_var}" in
                 "pihole_password")
@@ -3364,7 +3687,7 @@ pihole_munin_configure() {
         "remove")
             # Remove a variable from the config file
             [ -z "${1}" ] && { printf "  [❌] No variable specified for removal.\n" >&2; exit 1; }
-            printf "%s\n" "  [➖] Removing variable from '${config_file}'…"
+            printf "%s\n" "  [➖] Removing variable from '${config_file}' …"
             remove_var="${1}"
             case "${remove_var}" in
                 "user")  pattern='^ *user[[:space:]]' ;;
@@ -3416,7 +3739,28 @@ EOF
 ###############################################################################
 # Version Function
 ###############################################################################
-# Print plugin version and check for updates
+# Usage:
+#   pihole_munin_version [<option>]
+#
+# Description:
+#   Prints the current pihole_munin_ plugin version. Optionally checks for
+#   updates using a remote DNS TXT record if 'dig' is available, unless
+#   the skip option is provided.
+#
+# Arguments:
+#   <option>     - Options:
+#                    -S, skip, --skip-version-check   Skip remote version check
+#
+# Logic:
+#   - Parses options for skipping version check.
+#   - Prints the current plugin version.
+#   - If not skipping and 'dig' is available, checks for updates via DNS TXT.
+#   - Compares local and remote version strings.
+#   - Prints update info or success message.
+#
+# Output:
+#   - Prints version, update status, and instructions.
+#   - Returns non-zero on error.
 ###############################################################################
 
 pihole_munin_version() {
@@ -3438,7 +3782,7 @@ pihole_munin_version() {
     if [ "${skip_check}" -eq 0 ] && command -v dig >/dev/null 2>&1; then
         # Check for updates from a TXT record at sainternet.xyz using dig
         remote_version=$(dig +short TXT pihole-munin.sainternet.xyz | sed -e 's/[^.0-9]//g')
-        printf "\n%s\n" "  [🔄] Checking for updates…"
+        printf "\n%s\n" "  [🔄] Checking for updates …"
         if [ -n "${remote_version}" ]; then
             if pihole_munin_check "${remote_version}" "${pihole_munin_version}"; then
                 # Remote version is newer
@@ -3465,9 +3809,35 @@ pihole_munin_version() {
 datetime_timestamp=$(date +%Y-%m-%d-%H-%M-%S)
 
 ###############################################################################
-# Update Plugin
+# Update Plugin Function
 ###############################################################################
-# Update the pihole_munin_ plugin from GitHub
+# Usage:
+#   pihole_munin_update [<option>]
+#
+# Description:
+#   Updates the pihole_munin_ plugin to the latest version from GitHub.
+#   Downloads the latest script, checks version numbers, backs up the current
+#   plugin, and installs the update. Handles dry run mode, validates the
+#   downloaded script, and prints status messages.
+#
+# Arguments:
+#   <option>     - Options:
+#                -D, dry, --dry-run         Show actions without making changes
+#
+# Logic:
+#   - Checks for required directories and plugin file.
+#   - Downloads the latest script from GitHub.
+#   - Validates the downloaded script.
+#   - Compares local and remote version numbers.
+#   - Prompts user if local version is newer or version strings are invalid.
+#   - Backs up the current plugin before updating.
+#   - Installs the update and sets permissions.
+#   - Suggests restarting munin-node after update.
+#
+# Output:
+#   - Prints status and success/error messages.
+#   - Backs up and updates the plugin file.
+#   - Returns non-zero on error.
 ###############################################################################
 
 pihole_munin_update() {
@@ -3489,7 +3859,7 @@ pihole_munin_update() {
     tmp_file=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "pihole_munin_update")
     # Check plugin file exists
     pihole_munin_check_plugin_file
-    printf "  %s Fetching pihole_munin_ from %s…\n" \
+    printf "  %s Fetching pihole_munin_ from '%s' …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[⬇️]" || printf "[⬇️] (DRY RUN)" )" \
         "${repo_url}"
     # Download the latest script
@@ -3527,7 +3897,7 @@ pihole_munin_update() {
         else
             remote_version_display="invalid"
         fi
-        printf "  %s Checking versions…\n%s\n%s\n" \
+        printf "  %s Checking versions …\n%s\n%s\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🔄]" || printf "[🔄] (DRY RUN)" )" \
             "       local version: ${local_version_display}" \
             "       remote version: ${remote_version_display}"
@@ -3547,7 +3917,7 @@ pihole_munin_update() {
                 read -r answer
                 case "${answer}" in
                     [yY]|[yY][eE][sS])
-                        printf "\n%s\n\n" "  [🚀] Proceeding with update…"
+                        printf "\n%s\n\n" "  [🚀] Proceeding with update …"
                         ;;
                     *)
                         printf "%b\n" "  [❌] ${TEXT_RED}Aborted by user (interactive session).${TEXT_RESET}" >&2
@@ -3571,7 +3941,7 @@ pihole_munin_update() {
             fi
         fi
         # Backup current plugin
-        printf "\n  %s\n" "%s Backing up '${pihole_munin_path}'…" \
+        printf "\n  %s\n" "%s Backing up '${pihole_munin_path}' …" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🗄️]" || printf "[🗄️] (DRY RUN)" )"
         if [ "${dry_run}" -eq 0 ]; then
             cp -f "${pihole_munin_path}" "${bak_file}" || {
@@ -3591,7 +3961,7 @@ pihole_munin_update() {
                 "  [✅] (DRY RUN) Success."
         fi
         # Install update
-        printf "\n  %s Installing update…\n" \
+        printf "\n  %s Installing update …\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🛠️]" || printf "[🛠️] (DRY RUN)")"
         chmod 755 "${tmp_file}" || {
             printf "%s\n" "  [❌] Failed to set permissions on update." >&2
@@ -3622,9 +3992,33 @@ pihole_munin_update() {
 }
 
 ###############################################################################
-# Test Plugins
+# Test Plugins Function
 ###############################################################################
-# Test all enabled pihole_munin_ plugins using munin-run
+# Usage:
+#   pihole_munin_test [<option>]
+#
+# Description:
+#   Tests all enabled pihole_munin_ plugins using munin-run. Runs both config
+#   and fetch commands for each plugin, reporting any errors. Supports dry run
+#   mode to preview actions, and verbose/trace output for debugging.
+#
+# Arguments:
+#   <option>     - Options:
+#                -D, dry, --dry-run     Show actions without making changes
+#                -T, trace, --trace     Show detailed plugin output
+#                                       (implies verbose)
+#                -V, verbose, --verbose Show plugin output during the test
+#
+# Logic:
+#   - Checks for munin-run command.
+#   - Parses options for dry run, verbose, and trace modes.
+#   - If not dry run, runs munin-run config and fetch for each plugin.
+#   - In verbose/trace mode, prints plugin output and errors.
+#   - In dry run, checks symlinks exist for each plugin.
+#
+# Output:
+#   - Prints status and success/error messages.
+#   - Returns non-zero on error.
 ###############################################################################
 
 pihole_munin_test() {
@@ -3652,7 +4046,7 @@ pihole_munin_test() {
                 ;;
         esac
     done
-    printf "\n  %s Testing pihole_munin_ plugins…\n" \
+    printf "\n  %s Testing pihole_munin_ plugins …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🧪]" || printf "[🧪] (DRY RUN)")"
     if [ "${dry_run}" -eq 0 ]; then
         # Actually run munin-run for each plugin
@@ -3697,11 +4091,28 @@ pihole_munin_test() {
 ###############################################################################
 # Help Function
 ###############################################################################
-# Print help for pihole_munin_ commands
-# Usage: pihole_munin_help <command> [<subcommand>]
-# If no command is given, prints general help.
-# If a command is given, prints help for that command.
-# If a subcommand is given, prints help for that subcommand.
+# Usage:
+#   pihole_munin_help <command> [<subcommand>]
+#
+# Description:
+#   Prints detailed help and usage information for pihole_munin_ commands and
+#   subcommands. Handles admin, install, uninstall, update, config, fetch,
+#   flush, test, version, and other commands. Provides examples, option lists,
+#   and notes for each supported command. If no command is given, prints
+#   general help. If an unknown command or subcommand is given, prints a
+#   warning and general help.
+#
+# Arguments:
+#   <command>     - Main command or help topic (e.g. admin, install, fetch)
+#   <subcommand>  - Subcommand for admin (e.g. add, list, remove, update)
+#
+# Logic:
+#   - Matches command and subcommand to print relevant help text.
+#   - Prints usage, description, options, examples, and notes.
+#   - If unknown topic, prints warning and general help.
+#
+# Output:
+#   - Prints formatted help and usage information to stdout.
 ###############################################################################
 
 pihole_munin_help() {

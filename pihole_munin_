@@ -43,7 +43,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.5.1"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.6.0"}"
 
 # Munin documentation
 : <<=cut
@@ -760,17 +760,16 @@ GNU GPLv3
 # Script Path & Plugin ID Detection
 ###############################################################################
 
-# Determine the absolute path to the script, regardless of how it's called
+# Determine the path to the script
 case "${0}" in
-    /*)
-        script_path="${0}"  # Absolute path
-        ;;
+    /*) script_path="${0}" ;;
     *)
-        script_path="$(cd "$(dirname "${0}")" && pwd)/$(basename "${0}")"  # Relative path
+        script_path="$(cd "$(dirname "${0}")" && pwd)/$(basename "${0}")"
         ;;
 esac
 
-# Extract the plugin ID from the script name (e.g., pihole_munin_cache -> cache)
+# Extract the plugin ID from the script name
+# (e.g., pihole_munin_cache -> cache)
 pihole_munin_plugin_id="$(printf "%s" "${script_path}" | sed -e 's/^.*pihole_munin_//')"
 
 # Default to 'percent' plugin if no ID is found
@@ -833,9 +832,7 @@ fi
 if [ -n "${proto+x}" ]; then
     proto_normalised=$(printf '%s' "${proto}" | tr '[:upper:]' '[:lower:]')
     case "${proto_normalised}" in
-        "http"|"https")
-            proto="${proto_normalised}"
-            ;;
+        "http"|"https") proto="${proto_normalised}" ;;
         *)
             printf "%s\n\n%s\n" \
                 "  [❌] API variable 'proto' is set to an invalid value." \
@@ -1022,9 +1019,7 @@ pihole_munin_print() {
     # Output graph flag if valid
     if [ -n "${graph_val}" ] && [ -n "$(printf '%s' "${graph_val}" | tr -d '[:space:]')" ]; then
         case "${graph_val}" in
-            "yes"|"no")
-                printf "%s.graph %s\n" "${key_val}" "${graph_val}"
-                ;;
+            "yes"|"no") printf "%s.graph %s\n" "${key_val}" "${graph_val}" ;;
         esac
     fi
     # Output info string if present
@@ -1115,10 +1110,7 @@ pihole_munin_auth_check() {
                 already_authed="1"
             fi
             ;;
-        "401")
-            # Unauthorized, authentication required
-            :
-            ;;
+        "401") : ;; # Authentication required, do nothing
         *)
             # Unexpected response code
             printf "%s\n" "  [❌] Unepected response from the API, response code was '${check_code}'." >&2
@@ -1481,11 +1473,20 @@ pihole_munin_config_cache() {
             pihole_munin_safe_eval cache_crit "cache_" "${cache_key}" "_crit" ""
             pihole_munin_safe_eval cache_draw "cache_" "${cache_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval cache_graph "cache_" "${cache_key}" "_graph" "yes"
-            pihole_munin_safe_eval cache_info "cache_" "${cache_key}" "_info" "Pi-hole cache ${cache_key}"
+            # Conditionally append value to info for DERIVE type
+            pihole_munin_safe_eval cache_type "cache_" "${cache_key}" "_type" "DERIVE"
+            if [ "${cache_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${cache_value}" -eq 1 ]; then
+                    cache_info="Pi-hole cache ${cache_key} (${cache_value} record)"
+                else
+                    cache_info="Pi-hole cache ${cache_key} (${cache_value} records)"
+                fi
+            else
+                pihole_munin_safe_eval cache_info "cache_" "${cache_key}" "_info" "Pi-hole cache ${cache_key}"
+            fi
             pihole_munin_safe_eval cache_label "cache_" "${cache_key}" "_label" "${cache_key}"
             pihole_munin_safe_eval cache_max "cache_" "${cache_key}" "_max" ""
             pihole_munin_safe_eval cache_min "cache_" "${cache_key}" "_min" "0"
-            pihole_munin_safe_eval cache_type "cache_" "${cache_key}" "_type" "DERIVE"
             pihole_munin_safe_eval cache_warn "cache_" "${cache_key}" "_warn" ""
             # Print Munin field config for this cache key
             pihole_munin_print \
@@ -1553,11 +1554,20 @@ pihole_munin_config_cache_by_type() {
                 pihole_munin_safe_eval cache_by_type_crit "cache_by_type_" "${cache_by_type_key}" "_crit" ""
                 pihole_munin_safe_eval cache_by_type_draw "cache_by_type_" "${cache_by_type_key}" "_draw" "${graph_draw}"
                 pihole_munin_safe_eval cache_by_type_graph "cache_by_type_" "${cache_by_type_key}" "_graph" "yes"
-                pihole_munin_safe_eval cache_by_type_info "cache_by_type_" "${cache_by_type_key}" "_info" "Pi-hole cache type ${cache_by_type_default_label}"
+                pihole_munin_safe_eval cache_by_type_type "cache_by_type_" "${cache_by_type_key}" "_type" "DERIVE"
+                # Conditionally append value to info for DERIVE type
+                if [ "${cache_by_type_type:-DERIVE}" = "DERIVE" ]; then
+                    if [ "${cache_by_type_value}" -eq 1 ]; then
+                        cache_by_type_info="Pi-hole cache type ${cache_by_type_default_label} (${cache_by_type_value} record)"
+                    else
+                        cache_by_type_info="Pi-hole cache type ${cache_by_type_default_label} (${cache_by_type_value} records)"
+                    fi
+                else
+                    pihole_munin_safe_eval cache_by_type_info "cache_by_type_" "${cache_by_type_key}" "_info" "Pi-hole cache type ${cache_by_type_default_label}"
+                fi
                 pihole_munin_safe_eval cache_by_type_label "cache_by_type_" "${cache_by_type_key}" "_label" "${cache_by_type_default_label}"
                 pihole_munin_safe_eval cache_by_type_max "cache_by_type_" "${cache_by_type_key}" "_max" ""
                 pihole_munin_safe_eval cache_by_type_min "cache_by_type_" "${cache_by_type_key}" "_min" "0"
-                pihole_munin_safe_eval cache_by_type_type "cache_by_type_" "${cache_by_type_key}" "_type" "DERIVE"
                 pihole_munin_safe_eval cache_by_type_warn "cache_by_type_" "${cache_by_type_key}" "_warn" ""
                 # Print Munin field config for this cache type key
                 pihole_munin_print \
@@ -1852,20 +1862,37 @@ pihole_munin_config_overview() {
             pihole_munin_safe_eval overview_crit "overview_" "${overview_record_type}" "_crit" ""
             pihole_munin_safe_eval overview_draw "overview_" "${overview_record_type}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval overview_graph "overview_" "${overview_record_type}" "_graph" "yes"
-            pihole_munin_safe_eval overview_info "overview_" "${overview_record_type}" "_info" "DNS Resource Record type ${overview_record_type}"
+            pihole_munin_safe_eval overview_type "overview_" "${overview_record_type}" "_type" "DERIVE"
+            # Conditionally append values to info for DERIVE type
+            if [ "${overview_type:-DERIVE}" = "DERIVE" ]; then
+                # Singular/plural for queries
+                if [ "${overview_query_val}" -eq 1 ]; then
+                    overview_queries_word="query"
+                else
+                    overview_queries_word="queries"
+                fi
+                # Singular/plural for replies
+                if [ "${overview_reply_val}" -eq 1 ]; then
+                    overview_replies_word="reply"
+                else
+                    overview_replies_word="replies"
+                fi
+                overview_info="Pi-hole overview ${overview_record_type} (${overview_query_val} ${overview_queries_word}, ${overview_reply_val} ${overview_replies_word})"
+            else
+                pihole_munin_safe_eval overview_info "overview_" "${overview_record_type}" "_info" "Pi-hole overview ${overview_record_type}"
+            fi
             pihole_munin_safe_eval overview_label "overview_" "${overview_record_type}" "_label" "${overview_record_type}"
             pihole_munin_safe_eval overview_max "overview_" "${overview_record_type}" "_max" ""
             pihole_munin_safe_eval overview_min "overview_" "${overview_record_type}" "_min" "0"
-            pihole_munin_safe_eval overview_type "overview_" "${overview_record_type}" "_type" "DERIVE"
             pihole_munin_safe_eval overview_warn "overview_" "${overview_record_type}" "_warn" ""
             # Print Munin field config for queries (negative direction)
             pihole_munin_print \
                 "query_${overview_record_type}" \
-                "${overview_colour:-}" \
+                "" \
                 "${overview_crit:-}" \
                 "${overview_draw:-}" \
                 "no" \
-                "${overview_info:-}" \
+                "" \
                 "${overview_label:-}" \
                 "${overview_max:-}" \
                 "${overview_min:-}" \
@@ -1990,11 +2017,20 @@ pihole_munin_config_queries() {
             pihole_munin_safe_eval queries_crit "queries_" "${queries_key}" "_crit" ""
             pihole_munin_safe_eval queries_draw "queries_" "${queries_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval queries_graph "queries_" "${queries_key}" "_graph" "yes"
-            pihole_munin_safe_eval queries_info "queries_" "${queries_key}" "_info" "${queries_default_info}"
+            pihole_munin_safe_eval queries_type "queries_" "${queries_key}" "_type" "DERIVE"
+            # Conditionally append value to info for DERIVE type
+            if [ "${queries_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${queries_value}" -eq 1 ]; then
+                    queries_info="Pi-hole ${queries_key_label#*|} (${queries_value} query)"
+                else
+                    queries_info="Pi-hole ${queries_key_label#*|} (${queries_value} queries)"
+                fi
+            else
+                pihole_munin_safe_eval queries_info "queries_" "${queries_key}" "_info" "${queries_default_info}"
+            fi
             pihole_munin_safe_eval queries_label "queries_" "${queries_key}" "_label" "${queries_default_label}"
             pihole_munin_safe_eval queries_max "queries_" "${queries_key}" "_max" ""
             pihole_munin_safe_eval queries_min "queries_" "${queries_key}" "_min" "0"
-            pihole_munin_safe_eval queries_type "queries_" "${queries_key}" "_type" "DERIVE"
             pihole_munin_safe_eval queries_warn "queries_" "${queries_key}" "_warn" ""
             # Print Munin field config for this queries key
             pihole_munin_print \
@@ -2044,11 +2080,20 @@ pihole_munin_config_queries_by_status() {
             pihole_munin_safe_eval queries_by_status_crit "queries_by_status_" "${queries_by_status_key}" "_crit" ""
             pihole_munin_safe_eval queries_by_status_draw "queries_by_status_" "${queries_by_status_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval queries_by_status_graph "queries_by_status_" "${queries_by_status_key}" "_graph" "yes"
-            pihole_munin_safe_eval queries_by_status_info "queries_by_status_" "${queries_by_status_key}" "_info" "Pi-hole query status ${queries_by_status_key}"
+            pihole_munin_safe_eval queries_by_status_type "queries_by_status_" "${queries_by_status_key}" "_type" "DERIVE"
+            # Conditionally append value to info for DERIVE type
+            if [ "${queries_by_status_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${queries_by_status_value}" -eq 1 ]; then
+                    queries_by_status_info="Pi-hole query status ${queries_by_status_key} (${queries_by_status_value} query)"
+                else
+                    queries_by_status_info="Pi-hole query status ${queries_by_status_key} (${queries_by_status_value} queries)"
+                fi
+            else
+                pihole_munin_safe_eval queries_by_status_info "queries_by_status_" "${queries_by_status_key}" "_info" "Pi-hole query status ${queries_by_status_key}"
+            fi
             pihole_munin_safe_eval queries_by_status_label "queries_by_status_" "${queries_by_status_key}" "_label" "${queries_by_status_key}"
             pihole_munin_safe_eval queries_by_status_max "queries_by_status_" "${queries_by_status_key}" "_max" ""
             pihole_munin_safe_eval queries_by_status_min "queries_by_status_" "${queries_by_status_key}" "_min" "0"
-            pihole_munin_safe_eval queries_by_status_type "queries_by_status_" "${queries_by_status_key}" "_type" "DERIVE"
             pihole_munin_safe_eval queries_by_status_warn "queries_by_status_" "${queries_by_status_key}" "_warn" ""
             # Print Munin field config for this status key
             pihole_munin_print \
@@ -2098,11 +2143,20 @@ pihole_munin_config_queries_by_type() {
             pihole_munin_safe_eval queries_by_type_crit "queries_by_type_" "${queries_by_type_key}" "_crit" ""
             pihole_munin_safe_eval queries_by_type_draw "queries_by_type_" "${queries_by_type_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval queries_by_type_graph "queries_by_type_" "${queries_by_type_key}" "_graph" "yes"
-            pihole_munin_safe_eval queries_by_type_info "queries_by_type_" "${queries_by_type_key}" "_info" "Pi-hole query type ${queries_by_type_key}"
+            pihole_munin_safe_eval queries_by_type_type "queries_by_type_" "${queries_by_type_key}" "_type" "DERIVE"
+            # Conditionally append value to info for DERIVE type
+            if [ "${queries_by_type_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${queries_by_type_value}" -eq 1 ]; then
+                    queries_by_type_info="Pi-hole query type ${queries_by_type_key} (${queries_by_type_value} query)"
+                else
+                    queries_by_type_info="Pi-hole query type ${queries_by_type_key} (${queries_by_type_value} queries)"
+                fi
+            else
+                pihole_munin_safe_eval queries_by_type_info "queries_by_type_" "${queries_by_type_key}" "_info" "Pi-hole query type ${queries_by_type_key}"
+            fi
             pihole_munin_safe_eval queries_by_type_label "queries_by_type_" "${queries_by_type_key}" "_label" "${queries_by_type_key}"
             pihole_munin_safe_eval queries_by_type_max "queries_by_type_" "${queries_by_type_key}" "_max" ""
             pihole_munin_safe_eval queries_by_type_min "queries_by_type_" "${queries_by_type_key}" "_min" "0"
-            pihole_munin_safe_eval queries_by_type_type "queries_by_type_" "${queries_by_type_key}" "_type" "DERIVE"
             pihole_munin_safe_eval queries_by_type_warn "queries_by_type_" "${queries_by_type_key}" "_warn" ""
             # Print Munin field config for this type key
             pihole_munin_print \
@@ -2145,7 +2199,7 @@ pihole_munin_config_replies() {
     # For each replies key to display
     for replies_key in "auth" "forwarded" "local" "optimized" "unanswered"; do
         # Extract value from JSON, default to 0 if missing
-        replies_value=$(printf '%s' "${replies_response}" | jq -r --arg k "${replies_key}" '.metrics.dns.replies[$k] // 0')
+        replies_value=$(printf '%s\n' "${replies_response}" | jq -r --arg k "${replies_key}" '.metrics.dns.replies[$k] // 0')
         # Only print if graph_zero is enabled or value is non-zero
         if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne 0 ]; then
             # Load per-key config overrides
@@ -2153,11 +2207,20 @@ pihole_munin_config_replies() {
             pihole_munin_safe_eval replies_crit "replies_" "${replies_key}" "_crit" ""
             pihole_munin_safe_eval replies_draw "replies_" "${replies_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval replies_graph "replies_" "${replies_key}" "_graph" "yes"
-            pihole_munin_safe_eval replies_info "replies_" "${replies_key}" "_info" "Pi-hole reply ${replies_key}"
+            pihole_munin_safe_eval replies_type "replies_" "${replies_key}" "_type" "DERIVE"
+            # Conditionally append value to info for DERIVE type
+            if [ "${replies_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${replies_value}" -eq 1 ]; then
+                    replies_info="Pi-hole ${replies_key} replies (${replies_value} reply)"
+                else
+                    replies_info="Pi-hole ${replies_key} replies (${replies_value} replies)"
+                fi
+            else
+                pihole_munin_safe_eval replies_info "replies_" "${replies_key}" "_info" "Pi-hole ${replies_key} replies"
+            fi
             pihole_munin_safe_eval replies_label "replies_" "${replies_key}" "_label" "${replies_key}"
             pihole_munin_safe_eval replies_max "replies_" "${replies_key}" "_max" ""
             pihole_munin_safe_eval replies_min "replies_" "${replies_key}" "_min" "0"
-            pihole_munin_safe_eval replies_type "replies_" "${replies_key}" "_type" "DERIVE"
             pihole_munin_safe_eval replies_warn "replies_" "${replies_key}" "_warn" ""
             # Print Munin field config for this replies key
             pihole_munin_print \
@@ -2207,11 +2270,20 @@ pihole_munin_config_replies_by_type() {
             pihole_munin_safe_eval replies_by_type_crit "replies_by_type_" "${replies_by_type_key}" "_crit" ""
             pihole_munin_safe_eval replies_by_type_draw "replies_by_type_" "${replies_by_type_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval replies_by_type_graph "replies_by_type_" "${replies_by_type_key}" "_graph" "yes"
-            pihole_munin_safe_eval replies_by_type_info "replies_by_type_" "${replies_by_type_key}" "_info" "Pi-hole reply type ${replies_by_type_key}"
+            pihole_munin_safe_eval replies_by_type_type "replies_by_type_" "${replies_by_type_key}" "_type" "DERIVE"
+            # Conditionally append value to info for DERIVE type
+            if [ "${replies_by_type_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${replies_by_type_value}" -eq 1 ]; then
+                    replies_by_type_info="Pi-hole reply type ${replies_by_type_key} (${replies_by_type_value} reply)"
+                else
+                    replies_by_type_info="Pi-hole reply type ${replies_by_type_key} (${replies_by_type_value} replies)"
+                fi
+            else
+                pihole_munin_safe_eval replies_by_type_info "replies_by_type_" "${replies_by_type_key}" "_info" "Pi-hole reply type ${replies_by_type_key}"
+            fi
             pihole_munin_safe_eval replies_by_type_label "replies_by_type_" "${replies_by_type_key}" "_label" "${replies_by_type_key}"
             pihole_munin_safe_eval replies_by_type_max "replies_by_type_" "${replies_by_type_key}" "_max" ""
             pihole_munin_safe_eval replies_by_type_min "replies_by_type_" "${replies_by_type_key}" "_min" "0"
-            pihole_munin_safe_eval replies_by_type_type "replies_by_type_" "${replies_by_type_key}" "_type" "DERIVE"
             pihole_munin_safe_eval replies_by_type_warn "replies_by_type_" "${replies_by_type_key}" "_warn" ""
             # Print Munin field config for this type key
             pihole_munin_print \
@@ -2293,6 +2365,51 @@ pihole_munin_config_unique() {
 }
 
 ###############################################################################
+# Reverse PTR Lookup Helper
+###############################################################################
+# Usage: pihole_munin_rev_ptr <ip[:port]>
+# Performs reverse DNS lookup for an IP, caches results in state dir.
+###############################################################################
+
+pihole_munin_rev_ptr() {
+    ip_port="$1"
+    reverse_lookup_cache="${pihole_munin_plugstate}/pihole_munin_rev_ptr.state"
+    # Remove brackets for IPv6 [::1]:5353
+    ip_port=$(printf "%s" "${ip_port}" | sed 's/^\[\(.*\)\]$/\1/')
+    # Extract IP from IP:PORT
+    if printf "%s" "${ip_port}" | grep -Eq '^\[?[0-9a-fA-F:]+\]?:[0-9]+$'; then
+        ip=$(printf "%s" "${ip_port}" | sed 's/\(.*\):[0-9]\+$/\1/')
+    elif printf "%s" "${ip_port}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
+        ip=$(printf "%s" "${ip_port}" | cut -d: -f1)
+    else
+        ip="${ip_port}"
+    fi
+    # Check cache first
+    if grep -q "^${ip} " "${reverse_lookup_cache}" 2>/dev/null; then
+        cached=$(grep "^${ip} " "${reverse_lookup_cache}" | head -n1 | cut -d' ' -f2-)
+        if [ "${cached}" = "-" ]; then
+            printf "%s\n" "${ip_port}"
+        else
+            printf "%s\n" "${cached}"
+        fi
+        return
+    fi
+    # Do reverse lookup
+    hostname=$(getent hosts "${ip}" 2>/dev/null | awk '{print $2}' | head -n1)
+    if [ -z "${hostname}" ]; then
+        hostname=$(dig +time=2 +short -x "${ip}" | head -n1)
+    fi
+    # Cache result (negative or positive)
+    if [ -n "${hostname}" ]; then
+        printf "%s %s\n" "${ip}" "${hostname}" >> "${reverse_lookup_cache}"
+        printf "%s\n" "${hostname}"
+    else
+        printf "%s -\n" "${ip}" >> "${reverse_lookup_cache}"
+        printf "%s\n" "${ip_port}"
+    fi
+}
+
+###############################################################################
 # Upstreams Graph Configuration
 ###############################################################################
 
@@ -2316,6 +2433,7 @@ pihole_munin_config_upstreams() {
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
         raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')  # Upstream name
         raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')      # Upstream IP
+        upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
         # Use name if available, else IP, sanitize for Munin key
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
             upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
@@ -2324,28 +2442,36 @@ pihole_munin_config_upstreams() {
         fi
         # Prefix numeric keys to avoid Munin issues
         case "${upstreams_key}" in
-            [0-9]*)
-                upstreams_key="upstreams_${upstreams_key}"
-                ;;
+            [0-9]*) upstreams_key="upstreams_${upstreams_key}" ;;
         esac
-        # Build label and info string
+        # Build label and info string, using reverse PTR if possible
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
             label="${raw_name}"
             default_info="Pi-hole upstream server ${raw_name} (${raw_ip})"
         else
-            label="${raw_ip}"
-            default_info="Pi-hole upstream server ${raw_ip}"
+            rev_label=$(pihole_munin_rev_ptr "${raw_ip}")
+            label="${rev_label}"
+            default_info="Pi-hole upstream server ${rev_label} (${raw_ip})"
         fi
         # Load per-upstream config overrides
         pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstreams_key}" "_colour" ""
         pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstreams_key}" "_crit" ""
         pihole_munin_safe_eval upstreams_draw "upstreams_" "${upstreams_key}" "_draw" "${graph_draw}"
         pihole_munin_safe_eval upstreams_graph "upstreams_" "${upstreams_key}" "_graph" "yes"
-        pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info}"
+        pihole_munin_safe_eval upstreams_type "upstreams_" "${upstreams_key}" "_type" "DERIVE"
+        # Conditionally append value to info for DERIVE type
+        if [ "${upstreams_type:-DERIVE}" = "DERIVE" ]; then
+            if [ "${upstream_count}" -eq 1 ]; then
+                upstreams_info="Pi-hole upstream server ${label} (${raw_ip}) (${upstream_count} query)"
+            else
+                upstreams_info="Pi-hole upstream server ${label} (${raw_ip}) (${upstream_count} queries)"
+            fi
+        else
+            pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info}"
+        fi
         pihole_munin_safe_eval upstreams_label "upstreams_" "${upstreams_key}" "_label" "${label}"
         pihole_munin_safe_eval upstreams_max "upstreams_" "${upstreams_key}" "_max" ""
         pihole_munin_safe_eval upstreams_min "upstreams_" "${upstreams_key}" "_min" "0"
-        pihole_munin_safe_eval upstreams_type "upstreams_" "${upstreams_key}" "_type" "DERIVE"
         pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstreams_key}" "_warn" ""
         # Print Munin field config for this upstream key
         pihole_munin_print \
@@ -2412,60 +2538,24 @@ pihole_munin_check_dependencies() {
 pihole_munin_config_handler() {
     # Select the correct config function based on plugin ID
     case "${pihole_munin_plugin_id}" in
-        "cache")
-            pihole_munin_config_cache
-            ;;
-        "cache_by_type")
-            pihole_munin_config_cache_by_type
-            ;;
-        "clients")
-            pihole_munin_config_clients
-            ;;
-        "dnsmasq")
-            pihole_munin_config_dnsmasq
-            ;;
-        "domains")
-            pihole_munin_config_domains
-            ;;
-        "frequency")
-            pihole_munin_config_frequency
-            ;;
-        "gravity")
-            pihole_munin_config_gravity
-            ;;
-        "overview")
-            pihole_munin_config_overview
-            ;;
-        "percent")
-            pihole_munin_config_percent
-            ;;
-        "privacy")
-            pihole_munin_config_privacy
-            ;;
-        "queries")
-            pihole_munin_config_queries
-            ;;
-        "queries_by_status")
-            pihole_munin_config_queries_by_status
-            ;;
-        "queries_by_type")
-            pihole_munin_config_queries_by_type
-            ;;
-        "replies")
-            pihole_munin_config_replies
-            ;;
-        "replies_by_type")
-            pihole_munin_config_replies_by_type
-            ;;
-        "status")
-            pihole_munin_config_status
-            ;;
-        "unique")
-            pihole_munin_config_unique
-            ;;
-        "upstreams")
-            pihole_munin_config_upstreams
-            ;;
+        "cache") pihole_munin_config_cache ;;
+        "cache_by_type") pihole_munin_config_cache_by_type ;;
+        "clients") pihole_munin_config_clients ;;
+        "dnsmasq") pihole_munin_config_dnsmasq ;;
+        "domains") pihole_munin_config_domains ;;
+        "frequency") pihole_munin_config_frequency ;;
+        "gravity") pihole_munin_config_gravity ;;
+        "overview") pihole_munin_config_overview ;;
+        "percent") pihole_munin_config_percent ;;
+        "privacy") pihole_munin_config_privacy ;;
+        "queries") pihole_munin_config_queries ;;
+        "queries_by_status") pihole_munin_config_queries_by_status ;;
+        "queries_by_type") pihole_munin_config_queries_by_type ;;
+        "replies") pihole_munin_config_replies ;;
+        "replies_by_type") pihole_munin_config_replies_by_type ;;
+        "status") pihole_munin_config_status ;;
+        "unique") pihole_munin_config_unique ;;
+        "upstreams") pihole_munin_config_upstreams ;;
         *)
             # Print error for unknown plugin ID and exit
             printf "%s\n" "  [❌] Unable to generate config for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
@@ -2749,15 +2839,9 @@ pihole_munin_fetch_status() {
     printf "%s" "${status_response}" | jq -r '.blocking' \
     | while read -r status_key; do
         case "${status_key}" in
-            "enabled")
-                status_value="1"
-                ;;
-            "disabled")
-                status_value="0"
-                ;;
-            *)
-                status_value="-1"
-                ;;
+            "enabled") status_value="1" ;;
+            "disabled") status_value="0" ;;
+            *) status_value="-1" ;;
         esac
         printf "blocking_status.value %s\n" "${status_value}"
     done
@@ -2793,9 +2877,7 @@ pihole_munin_fetch_upstreams() {
         fi
         # Prefix numeric keys to avoid Munin issues
         case "${upstreams_key}" in
-            [0-9]*)
-                upstreams_key="upstreams_${upstreams_key}"
-                ;;
+            [0-9]*) upstreams_key="upstreams_${upstreams_key}" ;;
         esac
         upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
         # Only output if graph_zero is enabled or value is non-zero
@@ -2811,60 +2893,24 @@ pihole_munin_fetch_upstreams() {
 
 pihole_munin_fetch_handler() {
     case "${pihole_munin_plugin_id}" in
-        "cache")
-            pihole_munin_fetch_cache
-            ;;
-        "cache_by_type")
-            pihole_munin_fetch_cache_by_type
-            ;;
-        "clients")
-            pihole_munin_fetch_clients
-            ;;
-        "dnsmasq")
-            pihole_munin_fetch_dnsmasq
-            ;;
-        "domains")
-            pihole_munin_fetch_domains
-            ;;
-        "frequency")
-            pihole_munin_fetch_frequency
-            ;;
-        "gravity")
-            pihole_munin_fetch_gravity
-            ;;
-        "overview")
-            pihole_munin_fetch_overview
-            ;;
-        "percent")
-            pihole_munin_fetch_percent
-            ;;
-        "privacy")
-            pihole_munin_fetch_privacy
-            ;;
-        "queries")
-            pihole_munin_fetch_queries
-            ;;
-        "queries_by_status")
-            pihole_munin_fetch_queries_by_status
-            ;;
-        "queries_by_type")
-            pihole_munin_fetch_queries_by_type
-            ;;
-        "replies")
-            pihole_munin_fetch_replies
-            ;;
-        "replies_by_type")
-            pihole_munin_fetch_replies_by_type
-            ;;
-        "status")
-            pihole_munin_fetch_status
-            ;;
-        "unique")
-            pihole_munin_fetch_unique
-            ;;
-        "upstreams")
-            pihole_munin_fetch_upstreams
-            ;;
+        "cache") pihole_munin_fetch_cache ;;
+        "cache_by_type") pihole_munin_fetch_cache_by_type ;;
+        "clients") pihole_munin_fetch_clients ;;
+        "dnsmasq") pihole_munin_fetch_dnsmasq ;;
+        "domains") pihole_munin_fetch_domains ;;
+        "frequency") pihole_munin_fetch_frequency ;;
+        "gravity") pihole_munin_fetch_gravity ;;
+        "overview") pihole_munin_fetch_overview ;;
+        "percent") pihole_munin_fetch_percent ;;
+        "privacy") pihole_munin_fetch_privacy ;;
+        "queries") pihole_munin_fetch_queries ;;
+        "queries_by_status") pihole_munin_fetch_queries_by_status ;;
+        "queries_by_type") pihole_munin_fetch_queries_by_type ;;
+        "replies") pihole_munin_fetch_replies ;;
+        "replies_by_type") pihole_munin_fetch_replies_by_type ;;
+        "status") pihole_munin_fetch_status ;;
+        "unique") pihole_munin_fetch_unique ;;
+        "upstreams") pihole_munin_fetch_upstreams ;;
         *)
             # Unknown plugin ID
             printf "%s\n" "  [❌] Unable to fetch data for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
@@ -3045,19 +3091,13 @@ parse_install_args() {
     # Loop through all arguments
     while [ $# -gt 0 ]; do
         case "${1}" in
-            "-D"|"dry"|"--dry-run")
-                # Enable dry run mode
-                dry_run="1"
-                ;;
+            "-D"|"dry"|"--dry-run") dry_run="1" ;; # Enable dry run mode
             "-P"|"path"|"--plugins-path")
                 # Next argument is custom path
                 shift
                 custom_path="${1}"
                 ;;
-            *) 
-                # Collect plugin names
-                plugins_arg="${plugins_arg} ${1}"
-                ;;
+            *) plugins_arg="${plugins_arg} ${1}" ;; # Collect plugin names
         esac
         shift
     done
@@ -3308,9 +3348,7 @@ pihole_munin_flush() {
     # Parse options for dry run
     for option in "$@"; do
         case "${option}" in
-            "-D"|"dry"|"--dry-run")
-                dry_run="1"
-                ;;
+            "-D"|"dry"|"--dry-run") dry_run="1" ;;
         esac
     done
     # Check for required directories
@@ -3465,10 +3503,8 @@ pihole_munin_mask_input() {
     while :; do
         input_char=$(dd bs=1 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
         case "${input_char}" in
-            "0a")  # Enter key
-                break
-                ;;
-            "7f"|"08")  # Backspace
+            "0a") break ;;
+            "7f"|"08")
                 if [ -n "${input}" ]; then
                     input=${input%?}
                     printf '\b \b'
@@ -3481,14 +3517,10 @@ pihole_munin_mask_input() {
                         input="${input}${char}"
                         printf '*'
                         ;;
-                    *)
-                        continue
-                        ;;
+                    *) continue ;;
                 esac
                 ;;
-            *)
-                continue
-                ;;
+            *) continue ;;
         esac
     done
     pihole_munin_term_cleanup  # Restore terminal settings
@@ -3773,9 +3805,7 @@ pihole_munin_version() {
     # Parse options
     for option in "$@"; do
         case "${option}" in
-            "-S"|"skip"|"--skip-version-check")
-                skip_check="1"
-                ;;
+            "-S"|"skip"|"--skip-version-check") skip_check="1" ;;
             *)
                 printf "\n%s\n\n" "  [⚠️] Unknown option '${option}'."
                 pihole_munin_help version
@@ -3853,9 +3883,7 @@ pihole_munin_update() {
     # Parse options for dry run
     for option in "$@"; do
         case "${option}" in
-            "-D"|"dry"|"--dry-run")
-                dry_run="1"
-                ;;
+            "-D"|"dry"|"--dry-run") dry_run="1" ;;
         esac
     done
    # Check for required directories
@@ -4039,16 +4067,12 @@ pihole_munin_test() {
     # Parse options
     for option in "$@"; do
         case "${option}" in
-            "-D"|"dry"|"--dry-run")
-                dry_run="1"
-                ;;
+            "-D"|"dry"|"--dry-run") dry_run="1" ;;
             "-T"|"trace"|"--trace")
                 trace="1"
                 verbose="1"
                 ;;
-            "-V"|"verbose"|"--verbose")
-                verbose="1"
-                ;;
+            "-V"|"verbose"|"--verbose") verbose="1" ;;
         esac
     done
     printf "\n  %s Testing pihole_munin_ plugins …\n" \
@@ -4386,15 +4410,9 @@ case "${1}" in
             "-A"|"add"|"--add"|"-l"|"list"|"--list"|"-p"|"password"|"--password"|"-r"|"remove"|"--remove")
                 pihole_munin_root "$@"
                 ;;
-            "-i"|"install"|"--install")
-                pihole_munin_root "$@"
-                ;;
-            "-u"|"uninstall"|"--uninstall")
-                pihole_munin_root "$@"
-                ;;
-            "-U"|"update"|"--update")
-                pihole_munin_root "$@"
-                ;;
+            "-i"|"install"|"--install") pihole_munin_root "$@" ;;
+            "-u"|"uninstall"|"--uninstall") pihole_munin_root "$@" ;;
+            "-U"|"update"|"--update") pihole_munin_root "$@" ;;
         esac
         ;;
     "-f"|"flush"|"--flush-state"|"setpassword"|"-t"|"test"|"--test-plugins")
@@ -4413,12 +4431,8 @@ case "${1}" in
                 shift 2
                 pihole_munin_configure "add" "$@"
                 ;;
-            "-i"|"install"|"--install")
-                pihole_munin_install "$@"
-                ;;
-            "-l"|"list"|"--list")
-                pihole_munin_configure "list"
-                ;;
+            "-i"|"install"|"--install") pihole_munin_install "$@" ;;
+            "-l"|"list"|"--list") pihole_munin_configure "list" ;;
             "-p"|"password"|"--password")
                 shift 2
                 pihole_munin_configure "add" "pihole_password" "$@"
@@ -4427,43 +4441,25 @@ case "${1}" in
                 shift 2
                 pihole_munin_configure "remove" "$@"
                 ;;
-            "-u"|"uninstall"|"--uninstall")
-                pihole_munin_uninstall "$@"
-                ;;
-            "-U"|"update"|"--update")
-                pihole_munin_update "$@"
-                ;;
-            "")
-                pihole_munin_help "${1}"
-                ;;
-            *)
-                pihole_munin_help "${1}" "${2}"
-                ;;
+            "-u"|"uninstall"|"--uninstall") pihole_munin_uninstall "$@" ;;
+            "-U"|"update"|"--update") pihole_munin_update "$@" ;;
+            "") pihole_munin_help "${1}" ;;
+            *) pihole_munin_help "${1}" "${2}" ;;
         esac
         ;;
-    "autoconf")
-        pihole_munin_autoconf
-        ;;
+    "autoconf") pihole_munin_autoconf ;;
     "config")
         pihole_munin_config_handler
         if [ "${MUNIN_CAP_DIRTYCONFIG}" = "1" ]; then
             pihole_munin_fetch_handler
         fi
         ;;
-    "fetch")
-        pihole_munin_fetch_handler
-        ;;
-    "flush")
-        pihole_munin_flush "$@"
-        ;;
+    "fetch") pihole_munin_fetch_handler ;;
+    "flush") pihole_munin_flush "$@" ;;
     "-h"|"help"|"--help")
         case "${2}" in
-            "")
-                pihole_munin_help
-                ;;
-            "-a"|"admin"|"--admin")
-                pihole_munin_help "${2}" "${3:-}"
-                ;;
+            "") pihole_munin_help ;;
+            "-a"|"admin"|"--admin") pihole_munin_help "${2}" "${3:-}" ;;
             "autoconf"|"config"|"fetch"|"flush"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
                 pihole_munin_help "${2}"
                 ;;
@@ -4473,25 +4469,15 @@ case "${1}" in
                 ;;
         esac
         ;;
-    "suggest")
-        pihole_munin_suggest
-        ;;
-    "setpassword")
-        pihole_munin_configure "add" "pihole_password" "${2:-}"
-        ;;
-    "-t"|"test"|"--test-plugins")
-        pihole_munin_test "$@"
-        ;;
+    "suggest") pihole_munin_suggest ;;
+    "setpassword") pihole_munin_configure "add" "pihole_password" "${2:-}" ;;
+    "-t"|"test"|"--test-plugins") pihole_munin_test "$@" ;;
     "-v"|"version"|"--version")
         shift
         pihole_munin_version "$@"
         ;;
-    "")
-        pihole_munin_fetch_handler
-        ;;
-    *)
-        pihole_munin_help
-        ;;
+    "") pihole_munin_fetch_handler ;;
+    *) pihole_munin_help ;;
 esac
 
 #    /\_/\  

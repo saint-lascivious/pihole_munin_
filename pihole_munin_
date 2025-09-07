@@ -43,7 +43,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.6.0"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.6.1"}"
 
 # Munin documentation
 : <<=cut
@@ -243,23 +243,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # Only individual default values are provided here, the rest are left
       # to the user to configure if desired.
 
-      # clients
-      env.clients_active_crit 100
-      env.clients_active_warn 1:50
-      env.clients_total_crit 0:200
-      env.clients_total_warn 100
-
-      # domains
-      env.domains_domains_being_blocked_crit 1:10000000
-      env.domains_domains_being_blocked_warn 0:5000000
-
       # percent
       env.percent_percent_blocked_crit 90
       env.percent_percent_blocked_warn 1:85
-
-      # privacy
-      env.privacy_privacy_level_crit 1:3
-      env.privacy_privacy_level_warn 3:3
 
       # status
       env.status_blocking_status_crit 0:1
@@ -1616,7 +1602,7 @@ pihole_munin_config_clients() {
                     pihole_munin_print \
                         "${clients_key}" \
                         "${clients_active_colour:-}" \
-                        "${clients_active_crit:-"100"}" \
+                        "${clients_active_crit:-}" \
                         "${clients_active_draw:-${graph_draw}}" \
                         "${clients_active_graph:-"yes"}" \
                         "${clients_active_info:-"Pi-hole active clients"}" \
@@ -1624,14 +1610,14 @@ pihole_munin_config_clients() {
                         "${clients_active_max:-""}" \
                         "${clients_active_min:-"0"}" \
                         "${clients_active_type:-"${graph_type}"}" \
-                        "${clients_active_warn:-"1:50"}"
+                        "${clients_active_warn:-}"
                     ;;
                 "total")
                     # Print Munin field config for total clients
                     pihole_munin_print \
                         "${clients_key}" \
                         "${clients_total_colour:-}" \
-                        "${clients_total_crit:-"200"}" \
+                        "${clients_total_crit:-}" \
                         "${clients_total_draw:-${graph_draw}}" \
                         "${clients_total_graph:-"yes"}" \
                         "${clients_total_info:-"Pi-hole total clients"}" \
@@ -1639,7 +1625,7 @@ pihole_munin_config_clients() {
                         "${clients_total_max:-""}" \
                         "${clients_total_min:-"0"}" \
                         "${clients_total_type:-"${graph_type}"}" \
-                        "${clients_total_warn:-"1:100"}"
+                        "${clients_total_warn:-}"
                     ;;
             esac
         fi
@@ -1718,7 +1704,7 @@ pihole_munin_config_domains() {
     pihole_munin_print \
         "domains_being_blocked" \
         "${domains_domains_being_blocked_colour:-}" \
-        "${domains_domains_being_blocked_crit:-"1:10000000"}" \
+        "${domains_domains_being_blocked_crit:-}" \
         "${domains_domains_being_blocked_draw:-${graph_draw}}" \
         "${domains_domains_being_blocked_graph:-"yes"}" \
         "${domains_domains_being_blocked_info:-"Pi-hole domains being blocked"}" \
@@ -1726,7 +1712,7 @@ pihole_munin_config_domains() {
         "${domains_domains_being_blocked_max:-""}" \
         "${domains_domains_being_blocked_min:-"0"}" \
         "${domains_domains_being_blocked_type:-"${graph_type}"}" \
-        "${domains_domains_being_blocked_warn:-"0:5000000"}"
+        "${domains_domains_being_blocked_warn:-}"
 }
 
 ###############################################################################
@@ -1968,7 +1954,7 @@ pihole_munin_config_privacy() {
     pihole_munin_print \
         "privacy_level" \
         "${privacy_privacy_level_colour:-}" \
-        "${privacy_privacy_level_crit:-"1:3"}" \
+        "${privacy_privacy_level_crit:-}" \
         "${privacy_privacy_level_draw:-${graph_draw}}" \
         "${privacy_privacy_level_graph:-"yes"}" \
         "${privacy_privacy_level_info:-"Pi-hole privacy level"}" \
@@ -1976,7 +1962,7 @@ pihole_munin_config_privacy() {
         "${privacy_privacy_level_max:-"3"}" \
         "${privacy_privacy_level_min:-"0"}" \
         "${privacy_privacy_level_type:-"${graph_type}"}" \
-        "${privacy_privacy_level_warn:-"3:3"}"
+        "${privacy_privacy_level_warn:-}"
 }
 
 ###############################################################################

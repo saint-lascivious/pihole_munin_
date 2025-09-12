@@ -90,17 +90,17 @@ This is a wildcard plugin.
   replies: Shows Pi-hole's replies
   replies_by_type: Shows Pi-hole's replies by record type
   status: Shows Pi-hole's blocking status
-  unique: Shows the number of unique domains queried
+  unique: Shows the number of unique domains queried by Pi-hole
 
-  top_clients: Shows the top clients by query count
-  top_domains: Shows the top domains by query count
-  upstreams: Shows the number of queries sent to each upstream DNS server
+  top_clients: Shows Pi-hole's top clients by query count
+  top_domains: Shows Pi-hole's top domains by query count
+  upstreams: Shows the query counts for each of Pi-hole's upstream destinations
 
 Note: The 'top_clients', 'top_domains', and 'upstreams' plugins are not enabled by default due to privacy consideration and privacy level restriction.
 
- - 'top_domains' requires Pi-hole privacy level 0 ("show everything"). Disabled at levels 1, 2, and 3.
- - 'top_clients' requires Pi-hole privacy level 0 or 1 ("hide domains"). Disabled at levels 2 and 3.
- - 'upstreams' requires Pi-hole privacy level 0, 1, or 2 ("hide domains and clients"). Disabled at level 3.
+  top_domains: Requires Pi-hole privacy level 0 ("show everything"). Disabled at levels 1, 2, and 3.
+  top_clients: Requires Pi-hole privacy level 0 or 1 ("hide domains"). Disabled at levels 2 and 3.
+  upstreams: Requires Pi-hole privacy level 0, 1, or 2 ("hide domains and clients"). Disabled at level 3.
 
 If your Pi-hole privacy level is set higher, these plugins will not display data.
 
@@ -277,21 +277,21 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # replies: Shows Pi-hole's replies
       # replies_by_type: Shows Pi-hole's replies by record type
       # status: Shows Pi-hole's blocking status
-      # unique: Shows the number of unique domains queried
+      # unique: Shows the number of unique domains queried by Pi-hole
 
-      # top_clients: Shows the top clients by query count
-      # top_domains: Shows the top domains by query count
-      # upstreams: Shows the number of queries sent to each upstream DNS server
+      # top_clients: Shows Pi-hole's top clients by query count
+      # top_domains: Shows Pi-hole's top domains by query count
+      # upstreams: Shows the query counts for each of Pi-hole's upstream destinations
 
       # Note: The 'top_clients', 'top_domains', and 'upstreams' plugins are
       # not enabled by default due to privacy consideration and privacy level
       # restriction.
 
-      # - 'top_domains' requires Pi-hole privacy level 0 ("show everything").
+      # top_domains: Requires Pi-hole privacy level 0 ("show everything"). \
       #   Disabled at levels 1, 2, and 3.
-      # - 'top_clients' requires Pi-hole privacy level 0 or 1
+      # top_clients: Requires Pi-hole privacy level 0 or 1 \
       #   ("hide domains"). Disabled at levels 2 and 3.
-      # - 'upstreams' requires Pi-hole privacy level 0, 1, or 2
+      # upstreams: Requires Pi-hole privacy level 0, 1, or 2 \
       #   ("hide domains and clients"). Disabled at level 3.
 
       # If your Pi-hole privacy level is set higher, these plugins will not display data.
@@ -409,10 +409,10 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   status: This graph shows Pi-hole's blocking status
       #   unique: This graph shows the number of unique domains queried
 
-      #   top_clients: This graph shows the top clients by query count
-      #   top_domains: This graph shows the top domains by query count
-      #   upstreams: This graph shows the number of queries sent to each
-      #     upstream DNS server
+      #   top_clients: This graph shows Pi-hole's top clients by query count
+      #   top_domains: This graph shows Pi-hole's top domains by query count
+      #   upstreams: This graph shows the query counts for each of Pi-hole's \
+      #     upstream destinations
 
       # The default graph information may be overidden by setting the
       # graph_info_<plugin> variable to the desired information.
@@ -2390,7 +2390,7 @@ pihole_munin_config_top_clients() {
         "graph_args ${graph_args_top_clients:-${graph_args}}" \
         "graph_category ${graph_category_top_clients:-${graph_category}}" \
         "graph_height ${graph_height_top_clients:-${graph_height}}" \
-        "graph_info ${graph_info_top_clients:-"This graph shows the top clients by query count"}" \
+        "graph_info ${graph_info_top_clients:-"This graph shows Pi-hole's top clients by query count"}" \
         "graph_scale ${graph_scale_top_clients:-${graph_scale}}" \
         "graph_title ${graph_title_top_clients:-"Pi-hole top clients"}" \
         "graph_vlabel ${graph_vlabel_top_clients:-"queries / second"}" \
@@ -2472,7 +2472,7 @@ pihole_munin_config_top_domains() {
         "graph_args ${graph_args_top_domains:-${graph_args}}" \
         "graph_category ${graph_category_top_domains:-${graph_category}}" \
         "graph_height ${graph_height_top_domains:-${graph_height}}" \
-        "graph_info ${graph_info_top_domains:-"This graph shows the top queried domains"}" \
+        "graph_info ${graph_info_top_domains:-"This graph shows Pi-hole's top domains by query count"}" \
         "graph_scale ${graph_scale_top_domains:-${graph_scale}}" \
         "graph_title ${graph_title_top_domains:-"Pi-hole top domains"}" \
         "graph_vlabel ${graph_vlabel_top_domains:-"queries / second"}" \
@@ -2564,7 +2564,7 @@ pihole_munin_config_upstreams() {
         "graph_args ${graph_args_upstreams:-${graph_args}}" \
         "graph_category ${graph_category_upstreams:-${graph_category}}" \
         "graph_height ${graph_height_upstreams:-${graph_height}}" \
-        "graph_info ${graph_info_upstreams:-"This graph shows queries forwarded to each upstream server"}" \
+        "graph_info ${graph_info_upstreams:-"This graph shows the query counts for each of Pi-hole's upstream destinations"}" \
         "graph_scale ${graph_scale_upstreams:-${graph_scale}}" \
         "graph_title ${graph_title_upstreams:-"Pi-hole upstream servers"}" \
         "graph_vlabel ${graph_vlabel_upstreams:-"queries / second"}" \

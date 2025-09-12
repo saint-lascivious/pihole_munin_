@@ -43,7 +43,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.6.1"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.7.0"}"
 
 # Munin documentation
 : <<=cut
@@ -92,9 +92,17 @@ This is a wildcard plugin.
   status: Shows Pi-hole's blocking status
   unique: Shows the number of unique domains queried
 
+  top_clients: Shows the top clients by query count
+  top_domains: Shows the top domains by query count
   upstreams: Shows the number of queries sent to each upstream DNS server
 
-Note: The 'upstreams' plugin is not enabled at this time, it marks the deviation from solely anonymouse usage statistics to requiring the long term query database to be enabled with a lower privacy level.
+Note: The 'top_clients', 'top_domains', and 'upstreams' plugins are not enabled by default due to privacy consideration and privacy level restriction.
+
+ - 'top_domains' requires Pi-hole privacy level 0 ("show everything"). Disabled at levels 1, 2, and 3.
+ - 'top_clients' requires Pi-hole privacy level 0 or 1 ("hide domains"). Disabled at levels 2 and 3.
+ - 'upstreams' requires Pi-hole privacy level 0, 1, or 2 ("hide domains and clients"). Disabled at level 3.
+
+If your Pi-hole privacy level is set higher, these plugins will not display data.
 
 =head1 USAGE
 
@@ -251,10 +259,6 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       env.status_blocking_status_crit 0:1
       env.status_blocking_status_warn 1:1
 
-      # unique
-      env.unique_unique_domains_crit 1:10000
-      env.unique_unique_domains_warn 0:5000
-
       ### PLUGINS ###
 
       # cache: Shows Pi-hole's cache
@@ -275,11 +279,22 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # status: Shows Pi-hole's blocking status
       # unique: Shows the number of unique domains queried
 
+      # top_clients: Shows the top clients by query count
+      # top_domains: Shows the top domains by query count
       # upstreams: Shows the number of queries sent to each upstream DNS server
 
-      # Note: The 'upstreams' plugin is not enabled at this time, it marks the
-      # deviation from solely anonymouse usage statistics to requiring the long term
-      # query database to be enabled with a lower privacy level.
+      # Note: The 'top_clients', 'top_domains', and 'upstreams' plugins are
+      # not enabled by default due to privacy consideration and privacy level
+      # restriction.
+
+      # - 'top_domains' requires Pi-hole privacy level 0 ("show everything").
+      #   Disabled at levels 1, 2, and 3.
+      # - 'top_clients' requires Pi-hole privacy level 0 or 1
+      #   ("hide domains"). Disabled at levels 2 and 3.
+      # - 'upstreams' requires Pi-hole privacy level 0, 1, or 2
+      #   ("hide domains and clients"). Disabled at level 3.
+
+      # If your Pi-hole privacy level is set higher, these plugins will not display data.
 
       # You can override which plugins are enabled by setting the 'plugins' variable.
 
@@ -341,6 +356,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: --lower-limit 0
       #   status: --lower-limit -1 --upper-limit 1
       #   unique: --lower-limit 0
+
+      #   top_clients: --lower-limit 0
+      #   top_domains: --lower-limit 0
       #   upstreams: --lower-limit 0
 
       # The default graph arguments may be overridden by setting the
@@ -390,6 +408,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: This graph shows Pi-hole's replies by record type
       #   status: This graph shows Pi-hole's blocking status
       #   unique: This graph shows the number of unique domains queried
+
+      #   top_clients: This graph shows the top clients by query count
+      #   top_domains: This graph shows the top domains by query count
       #   upstreams: This graph shows the number of queries sent to each
       #     upstream DNS server
 
@@ -428,6 +449,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: Pi-hole replies by type
       #   status: Pi-hole status
       #   unique: Pi-hole unique domains
+
+      #   top_clients: Pi-hole top clients
+      #   top_domains: Pi-hole top domains
       #   upstreams: Pi-hole upstream DNS servers
 
       # The default graph titles may be overridden by setting the
@@ -480,6 +504,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: replies / second
       #   status: unknown / disabled / enabled
       #   unique: unique domains
+
+      #   top_clients: queries / second
+      #   top_domains: queries / second
       #   upstreams: queries / second
 
       # The default graph vertical labels may be overridden by setting the
@@ -1012,10 +1039,11 @@ pihole_munin_print() {
     if [ -n "${info_val}" ] && [ -n "$(printf '%s' "${info_val}" | tr -d '[:space:]')" ]; then
         printf "%s.info %s\n" "${key_val}" "${info_val}"
     fi
-    # Truncate label if too long for Munin (19 characters max)
+    # Truncate label if too long
     if [ "${#label_val}" -gt 19 ]; then
-        # Truncate to 16 characters and add ellipsis to indicate that the
-        # full label is available in the info string or is otherwise known
+        # Truncate to 16 characters and add ellipsis ('...') for a total of 19
+        # characters to indicate that the full label is available in the info
+        # string or is otherwise known
         label_val="$(printf "%s" "${label_val}" | cut -c1-16)..."
     fi
     # Output label (always required)
@@ -1198,7 +1226,9 @@ pihole_munin_logout() {
     [ -z "${pihole_munin_session_sid}" ] && return 0  # No session, nothing to do
     [ "${session_cache}" -eq 1 ] && return 0        # If caching, don't logout
     # Send DELETE request to API to logout session
-    logout_code=$(curl --connect-timeout 5 -k -s -S -L -o - -w "%{response_code}" -X DELETE "${api_target}${auth_url}" \
+    logout_code=$(curl --connect-timeout 5 -k -s -S -L -o - \
+        -w "%{response_code}" \
+        -X DELETE "${api_target}${auth_url}" \
         -H "Accept: application/json" \
         -H "sid: ${pihole_munin_session_sid}")
     case "${logout_code}" in
@@ -1275,26 +1305,6 @@ pihole_munin_validate_json() {
 }
 
 ###############################################################################
-# API URL Builder
-###############################################################################
-# Usage: pihole_munin_api_url <endpoint>
-# Appends session ID if required for authentication.
-###############################################################################
-
-pihole_munin_api_url() {
-    url="${api_target}${1}"  # Build base URL
-    # If authentication is required and session ID is set, append sid param
-    if [ "${auth_required}" -eq 1 ] && [ -n "${pihole_munin_session_sid}" ]; then
-        sep="?"  # Default separator
-        case "${url}" in
-            *"\?"*) sep="&" ;;  # If URL already has ?, use &
-        esac
-        url="${url}${sep}sid=${pihole_munin_session_sid}"
-    fi
-    printf "%s" "${url}"  # Output final URL
-}
-
-###############################################################################
 # State Handler
 ###############################################################################
 # Usage:
@@ -1353,7 +1363,9 @@ pihole_munin_state_handler() {
         did_auth="1"
     fi
     # Fetch fresh response from API
-    response=$(curl --connect-timeout 5 -G -k -s -L "$(pihole_munin_api_url "${1}")") || return 1
+    response=$(curl --connect-timeout 5 -G -k -s -L \
+                    -H "sid: ${pihole_munin_session_sid}" \
+                    "${api_target}${1}") || exit 1
     # Validate response is JSON
     if ! printf "%s" "${response}" | pihole_munin_validate_json; then
         return 1
@@ -1379,7 +1391,9 @@ info_ftl_url="${info_ftl_url:-/info/ftl}"                            # FTL info 
 info_metrics_url="${info_metrics_url:-/info/metrics}"                # Metrics endpoint
 stats_query_types_url="${stats_query_types_url:-/stats/query_types}" # Query types endpoint
 stats_summary_url="${stats_summary_url:-/stats/summary}"             # Summary endpoint
-stats_upstreams_url="${stats_upstreams_url:-/stats/database/upstreams}" # Upstreams endpoint
+stats_top_clients_url="${stats_top_clients_url:-/stats/top_clients}" # Top clients endpoint
+stats_top_domains_url="${stats_top_domains_url:-/stats/top_domains}" # Top domains endpoint
+stats_upstreams_url="${stats_upstreams_url:-/stats/upstreams}"       # Upstreams endpoint
 
 ###############################################################################
 # Graph Configuration Variables
@@ -2320,37 +2334,6 @@ pihole_munin_config_status() {
 }
 
 ###############################################################################
-# Unique Domains Graph Configuration
-###############################################################################
-
-pihole_munin_config_unique() {
-    # Print Munin graph config lines, using plugin-specific overrides if set
-    printf "%s\n" \
-        "graph ${graph_unique:-${graph}}" \
-        "graph_args ${graph_args_unique:-${graph_args}}" \
-        "graph_category ${graph_category_unique:-${graph_category}}" \
-        "graph_height ${graph_height_unique:-${graph_height}}" \
-        "graph_info ${graph_info_unique:-"This graph shows the number of unique domains queried by Pi-hole"}" \
-        "graph_scale ${graph_scale_unique:-${graph_scale}}" \
-        "graph_title ${graph_title_unique:-"Pi-hole unique domains"}" \
-        "graph_vlabel ${graph_vlabel_unique:-"unique domains"}" \
-        "graph_width ${graph_width_unique:-${graph_width}}"
-    # Print Munin field config for unique domains (single value)
-    pihole_munin_print \
-        "unique_domains" \
-        "${unique_unique_domains_colour:-}" \
-        "${unique_unique_domains_crit:-"1:10000"}" \
-        "${unique_unique_domains_draw:-${graph_draw}}" \
-        "${unique_unique_domains_graph:-"yes"}" \
-        "${unique_unique_domains_info:-"Pi-hole unique domains"}" \
-        "${unique_unique_domains_label:-"unique domains"}" \
-        "${unique_unique_domains_max:-}" \
-        "${unique_unique_domains_min:-"0"}" \
-        "${unique_unique_domains_type:-"${graph_type}"}" \
-        "${unique_unique_domains_warn:-"0:5000"}"
-}
-
-###############################################################################
 # Reverse PTR Lookup Helper
 ###############################################################################
 # Usage: pihole_munin_rev_ptr <ip[:port]>
@@ -2395,10 +2378,185 @@ pihole_munin_rev_ptr() {
     fi
 }
 
+
+###############################################################################
+# Top Clients Graph Configuration
+###############################################################################
+
+pihole_munin_config_top_clients() {
+    # Print Munin graph config lines, using plugin-specific overrides if set
+    printf "%s\n" \
+        "graph ${graph_top_clients:-${graph}}" \
+        "graph_args ${graph_args_top_clients:-${graph_args}}" \
+        "graph_category ${graph_category_top_clients:-${graph_category}}" \
+        "graph_height ${graph_height_top_clients:-${graph_height}}" \
+        "graph_info ${graph_info_top_clients:-"This graph shows the top clients by query count"}" \
+        "graph_scale ${graph_scale_top_clients:-${graph_scale}}" \
+        "graph_title ${graph_title_top_clients:-"Pi-hole top clients"}" \
+        "graph_vlabel ${graph_vlabel_top_clients:-"queries / second"}" \
+        "graph_width ${graph_width_top_clients:-${graph_width}}"
+    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
+    printf "%s" "${top_clients_response}" | jq -c '.clients[]' | while read -r client; do
+        ip=$(printf '%s' "${client}" | jq -r '.ip')
+        name=$(printf '%s' "${client}" | jq -r '.name')
+        count=$(printf '%s' "${client}" | jq -r '.count')
+        key=$(printf '%s' "${name}" | tr -c 'a-zA-Z0-9' '_' )
+        [ -z "${key}" ] && key=$(printf '%s' "${ip}" | tr -c 'a-zA-Z0-9' '_' )
+        # Build label and info: prefer name, then rev_ptr, then IP
+        if [ -n "${name}" ] && [ "${name}" != "null" ]; then
+            default_label="${name}"
+            default_info="Top client ${name} (${ip}"
+        else
+            rev_label=$(pihole_munin_rev_ptr "${ip}")
+            if [ "${rev_label}" != "${ip}" ]; then
+                default_label="${rev_label}"
+                default_info="Top client ${rev_label} (${ip}"
+            else
+                default_label="${ip}"
+                default_info="Top client ${ip}"
+            fi
+        fi
+        # Per-field overrides
+        pihole_munin_safe_eval top_clients_colour "top_clients_" "${key}" "_colour" ""
+        pihole_munin_safe_eval top_clients_crit "top_clients_" "${key}" "_crit" ""
+        pihole_munin_safe_eval top_clients_draw "top_clients_" "${key}" "_draw" "${graph_draw}"
+        pihole_munin_safe_eval top_clients_graph "top_clients_" "${key}" "_graph" "yes"
+        pihole_munin_safe_eval top_clients_type "top_clients_" "${key}" "_type" "DERIVE"
+        # Info string: for DERIVE, combine IP and count in one parenthesis if name/rev_ptr, else just append count
+        if [ "${top_clients_type:-DERIVE}" = "DERIVE" ]; then
+            if [ "${default_info}" = "Top client ${ip}" ]; then
+                # Only IP, just append count
+                if [ "${count}" -eq 1 ]; then
+                    top_clients_info="${default_info} (${count} query)"
+                else
+                    top_clients_info="${default_info} (${count} queries)"
+                fi
+            else
+                # Name or rev_ptr, combine ip and count in one parenthesis
+                if [ "${count}" -eq 1 ]; then
+                    top_clients_info="${default_info}, ${count} query)"
+                else
+                    top_clients_info="${default_info}, ${count} queries)"
+                fi
+            fi
+        else
+            # Non-DERIVE: use default info, close parenthesis if needed
+            pihole_munin_safe_eval top_clients_info "top_clients_" "${key}" "_info" "${default_info})"
+        fi
+        pihole_munin_safe_eval top_clients_label "top_clients_" "${key}" "_label" "${default_label}"
+        pihole_munin_safe_eval top_clients_max "top_clients_" "${key}" "_max" ""
+        pihole_munin_safe_eval top_clients_min "top_clients_" "${key}" "_min" "0"
+        pihole_munin_safe_eval top_clients_warn "top_clients_" "${key}" "_warn" ""
+        pihole_munin_print \
+            "${key}" \
+            "${top_clients_colour:-}" \
+            "${top_clients_crit:-}" \
+            "${top_clients_draw:-}" \
+            "${top_clients_graph:-}" \
+            "${top_clients_info:-}" \
+            "${top_clients_label:-}" \
+            "${top_clients_max:-}" \
+            "${top_clients_min:-}" \
+            "${top_clients_type:-}" \
+            "${top_clients_warn:-}"
+    done
+}
+
+###############################################################################
+# Top Domains Graph Configuration
+###############################################################################
+
+pihole_munin_config_top_domains() {
+    printf "%s\n" \
+        "graph ${graph_top_domains:-${graph}}" \
+        "graph_args ${graph_args_top_domains:-${graph_args}}" \
+        "graph_category ${graph_category_top_domains:-${graph_category}}" \
+        "graph_height ${graph_height_top_domains:-${graph_height}}" \
+        "graph_info ${graph_info_top_domains:-"This graph shows the top queried domains"}" \
+        "graph_scale ${graph_scale_top_domains:-${graph_scale}}" \
+        "graph_title ${graph_title_top_domains:-"Pi-hole top domains"}" \
+        "graph_vlabel ${graph_vlabel_top_domains:-"queries / second"}" \
+        "graph_width ${graph_width_top_domains:-${graph_width}}"
+    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
+    printf "%s" "${top_domains_response}" | jq -c '.domains[]' | while read -r domain; do
+        dom=$(printf '%s' "${domain}" | jq -r '.domain')
+        count=$(printf '%s' "${domain}" | jq -r '.count')
+        key=$(printf '%s' "${dom}" | tr -c 'a-zA-Z0-9' '_' )
+        default_label="${dom}"
+        default_info="Top domain ${dom}"
+        # Per-field overrides
+        pihole_munin_safe_eval top_domains_colour "top_domains_" "${key}" "_colour" ""
+        pihole_munin_safe_eval top_domains_crit "top_domains_" "${key}" "_crit" ""
+        pihole_munin_safe_eval top_domains_draw "top_domains_" "${key}" "_draw" "${graph_draw}"
+        pihole_munin_safe_eval top_domains_graph "top_domains_" "${key}" "_graph" "yes"
+        # Conditionally append value to info for DERIVE type
+        pihole_munin_safe_eval top_domains_type "top_domains_" "${key}" "_type" "DERIVE"
+        if [ "${top_domains_type:-DERIVE}" = "DERIVE" ]; then
+            if [ "${count}" -eq 1 ]; then
+                top_domains_info="${default_info} (${count} query)"
+            else
+                top_domains_info="${default_info} (${count} queries)"
+            fi
+        else
+            pihole_munin_safe_eval top_domains_info "top_domains_" "${key}" "_info" "${default_info}"
+        fi
+        pihole_munin_safe_eval top_domains_label "top_domains_" "${key}" "_label" "${default_label}"
+        pihole_munin_safe_eval top_domains_max "top_domains_" "${key}" "_max" ""
+        pihole_munin_safe_eval top_domains_min "top_domains_" "${key}" "_min" "0"
+        pihole_munin_safe_eval top_domains_warn "top_domains_" "${key}" "_warn" ""
+        pihole_munin_print \
+            "${key}" \
+            "${top_domains_colour:-}" \
+            "${top_domains_crit:-}" \
+            "${top_domains_draw:-}" \
+            "${top_domains_graph:-}" \
+            "${top_domains_info:-}" \
+            "${top_domains_label:-}" \
+            "${top_domains_max:-}" \
+            "${top_domains_min:-}" \
+            "${top_domains_type:-}" \
+            "${top_domains_warn:-}"
+    done
+}
+
+###############################################################################
+# Unique Domains Graph Configuration
+###############################################################################
+
+pihole_munin_config_unique() {
+    # Print Munin graph config lines, using plugin-specific overrides if set
+    printf "%s\n" \
+        "graph ${graph_unique:-${graph}}" \
+        "graph_args ${graph_args_unique:-${graph_args}}" \
+        "graph_category ${graph_category_unique:-${graph_category}}" \
+        "graph_height ${graph_height_unique:-${graph_height}}" \
+        "graph_info ${graph_info_unique:-"This graph shows the number of unique domains queried by Pi-hole"}" \
+        "graph_scale ${graph_scale_unique:-${graph_scale}}" \
+        "graph_title ${graph_title_unique:-"Pi-hole unique domains"}" \
+        "graph_vlabel ${graph_vlabel_unique:-"unique domains"}" \
+        "graph_width ${graph_width_unique:-${graph_width}}"
+    # Print Munin field config for unique domains (single value)
+    pihole_munin_print \
+        "unique_domains" \
+        "${unique_unique_domains_colour:-}" \
+        "${unique_unique_domains_crit:-}" \
+        "${unique_unique_domains_draw:-${graph_draw}}" \
+        "${unique_unique_domains_graph:-"yes"}" \
+        "${unique_unique_domains_info:-"Pi-hole unique domains"}" \
+        "${unique_unique_domains_label:-"unique domains"}" \
+        "${unique_unique_domains_max:-}" \
+        "${unique_unique_domains_min:-"0"}" \
+        "${unique_unique_domains_type:-"${graph_type}"}" \
+        "${unique_unique_domains_warn:-}"
+}
+
 ###############################################################################
 # Upstreams Graph Configuration
 ###############################################################################
 
+###############################################################################
+# Upstreams Graph Configuration
+###############################################################################
 pihole_munin_config_upstreams() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -2411,16 +2569,13 @@ pihole_munin_config_upstreams() {
         "graph_title ${graph_title_upstreams:-"Pi-hole upstream servers"}" \
         "graph_vlabel ${graph_vlabel_upstreams:-"queries / second"}" \
         "graph_width ${graph_width_upstreams:-${graph_width}}"
-    # Build API URL for upstreams (last 5 minutes)
-    url="${stats_upstreams_url}?from=$((seconds_timestamp - 300))&until=${seconds_timestamp}"
-    # Fetch upstreams metrics from API
-    upstreams_response=$(pihole_munin_state_handler "${url}") || exit 1
-    # Iterate over each upstream entry
+    upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
-        raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')  # Upstream name
-        raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')      # Upstream IP
+        raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
+        raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
+        raw_port=$(printf '%s' "${upstream}" | jq -r '.port // 0')
         upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
-        # Use name if available, else IP, sanitize for Munin key
+        # Build key: prefer name, else IP
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
             upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
         else
@@ -2430,32 +2585,47 @@ pihole_munin_config_upstreams() {
         case "${upstreams_key}" in
             [0-9]*) upstreams_key="upstreams_${upstreams_key}" ;;
         esac
-        # Build label and info string, using reverse PTR if possible
+        # Port string for label/info
+        port_str=""
+        if [ "${raw_port}" -gt 0 ] && [ "${raw_port}" -le 65535 ] && [ "${raw_port}" -ne 53 ]; then
+            port_str=":${raw_port}"
+        fi
+        # Build label and info: prefer name, then rev_ptr, then IP
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
-            label="${raw_name}"
-            default_info="Pi-hole upstream server ${raw_name} (${raw_ip})"
+            default_label="${raw_name}${port_str}"
+            default_info="Pi-hole upstream server ${raw_name}${port_str} (${raw_ip}${port_str}"
         else
             rev_label=$(pihole_munin_rev_ptr "${raw_ip}")
-            label="${rev_label}"
-            default_info="Pi-hole upstream server ${rev_label} (${raw_ip})"
+            default_label="${rev_label}${port_str}"
+            default_info="Pi-hole upstream server ${rev_label}${port_str} (${raw_ip}${port_str}"
         fi
-        # Load per-upstream config overrides
         pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstreams_key}" "_colour" ""
         pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstreams_key}" "_crit" ""
         pihole_munin_safe_eval upstreams_draw "upstreams_" "${upstreams_key}" "_draw" "${graph_draw}"
         pihole_munin_safe_eval upstreams_graph "upstreams_" "${upstreams_key}" "_graph" "yes"
         pihole_munin_safe_eval upstreams_type "upstreams_" "${upstreams_key}" "_type" "DERIVE"
-        # Conditionally append value to info for DERIVE type
+        # Info string: for DERIVE, combine IP and count in one parenthesis if name/rev_ptr, else just append count
         if [ "${upstreams_type:-DERIVE}" = "DERIVE" ]; then
-            if [ "${upstream_count}" -eq 1 ]; then
-                upstreams_info="Pi-hole upstream server ${label} (${raw_ip}) (${upstream_count} query)"
+            if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+                # Name or rev_ptr, combine ip and count in one parenthesis
+                if [ "${upstream_count}" -eq 1 ]; then
+                    upstreams_info="${default_info}, ${upstream_count} query)"
+                else
+                    upstreams_info="${default_info}, ${upstream_count} queries)"
+                fi
             else
-                upstreams_info="Pi-hole upstream server ${label} (${raw_ip}) (${upstream_count} queries)"
+                # Only IP/rev_ptr, just append count
+                if [ "${upstream_count}" -eq 1 ]; then
+                    upstreams_info="${default_info} (${upstream_count} query)"
+                else
+                    upstreams_info="${default_info} (${upstream_count} queries)"
+                fi
             fi
         else
-            pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info}"
+            # Non-DERIVE: use default info, close parenthesis if needed
+            pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info})"
         fi
-        pihole_munin_safe_eval upstreams_label "upstreams_" "${upstreams_key}" "_label" "${label}"
+        pihole_munin_safe_eval upstreams_label "upstreams_" "${upstreams_key}" "_label" "${default_label}"
         pihole_munin_safe_eval upstreams_max "upstreams_" "${upstreams_key}" "_max" ""
         pihole_munin_safe_eval upstreams_min "upstreams_" "${upstreams_key}" "_min" "0"
         pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstreams_key}" "_warn" ""
@@ -2540,6 +2710,8 @@ pihole_munin_config_handler() {
         "replies") pihole_munin_config_replies ;;
         "replies_by_type") pihole_munin_config_replies_by_type ;;
         "status") pihole_munin_config_status ;;
+        "top_clients") pihole_munin_config_top_clients ;;
+        "top_domains") pihole_munin_config_top_domains ;;
         "unique") pihole_munin_config_unique ;;
         "upstreams") pihole_munin_config_upstreams ;;
         *)
@@ -2834,6 +3006,36 @@ pihole_munin_fetch_status() {
 }
 
 ###############################################################################
+# Fetch Top Clients Metrics
+###############################################################################
+
+pihole_munin_fetch_top_clients() {
+    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
+    printf "%s" "${top_clients_response}" | jq -c '.clients[]' | while read -r client; do
+        ip=$(printf '%s' "${client}" | jq -r '.ip')
+        name=$(printf '%s' "${client}" | jq -r '.name')
+        count=$(printf '%s' "${client}" | jq -r '.count')
+        key=$(printf '%s' "${name}" | tr -c 'a-zA-Z0-9' '_' )
+        [ -z "${key}" ] && key=$(printf '%s' "${ip}" | tr -c 'a-zA-Z0-9' '_' )
+        printf "%s.value %s\n" "${key}" "${count}"
+    done
+}
+
+###############################################################################
+# Fetch Top Domains Metrics
+###############################################################################
+
+pihole_munin_fetch_top_domains() {
+    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
+    printf "%s" "${top_domains_response}" | jq -c '.domains[]' | while read -r domain; do
+        dom=$(printf '%s' "${domain}" | jq -r '.domain')
+        count=$(printf '%s' "${domain}" | jq -r '.count')
+        key=$(printf '%s' "${dom}" | tr -c 'a-zA-Z0-9' '_' )
+        printf "%s.value %s\n" "${key}" "${count}"
+    done
+}
+
+###############################################################################
 # Fetch Unique Domains
 ###############################################################################
 
@@ -2848,9 +3050,7 @@ pihole_munin_fetch_unique() {
 ###############################################################################
 
 pihole_munin_fetch_upstreams() {
-    # Build API URL for upstreams (last 5 minutes)
-    url="${stats_upstreams_url}?from=$((seconds_timestamp - 300))&until=${seconds_timestamp}"
-    upstreams_response=$(pihole_munin_state_handler "${url}") || exit 1
+    upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
     # Iterate over each upstream entry
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
         raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')  # Upstream name
@@ -2895,6 +3095,8 @@ pihole_munin_fetch_handler() {
         "replies") pihole_munin_fetch_replies ;;
         "replies_by_type") pihole_munin_fetch_replies_by_type ;;
         "status") pihole_munin_fetch_status ;;
+        "top_clients") pihole_munin_fetch_top_clients ;;
+        "top_domains") pihole_munin_fetch_top_domains ;;
         "unique") pihole_munin_fetch_unique ;;
         "upstreams") pihole_munin_fetch_upstreams ;;
         *)
@@ -2947,12 +3149,13 @@ pihole_munin_normalise_plugins() {
 }
 
 ###############################################################################
-# List Valid Plugin IDS
+# Plugin Lists
 ###############################################################################
-valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status unique"
+valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status top_clients top_domains unique upstreams"
+default_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status unique"
 
 # Normalise PLUGINS environment variable or use all valid plugins
-plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$valid_plugins}")
+plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$default_plugins}")
 
 ###############################################################################
 # Suggest Plugins
@@ -3246,17 +3449,26 @@ pihole_munin_install() {
     done
     # Remove old plugin symlinks if needed
     if [ "$plugins_to_clean" -eq 1 ]; then
-        printf "\n  %s Cleaning plugin directory …\n" \
+        # Remove only obsolete plugin symlinks
+        printf "\n  %s Cleaning obsolete plugin symlinks …\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
-        for plugin_to_clean in "${plugins_enabled}"/pihole_munin_*; do
-            [ ! -e "${plugin_to_clean}" ] && continue
-            [ "${plugin_to_clean}" = "${plugins_enabled}/pihole_munin_" ] && continue
-            printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugin_to_clean}${TEXT_RESET}"
-            if [ "$dry_run" -eq 0 ]; then
-                rm -f "${plugin_to_clean}" || {
-                    printf "%s\n" "  [❌] Failed to remove plugin '${plugin_to_clean}'\n" >&2
-                    exit 1
-                }
+        for plugin_symlink in "${plugins_enabled}"/pihole_munin_*; do
+            [ ! -e "${plugin_symlink}" ] && continue
+            plugin_name=$(basename "${plugin_symlink}" | sed 's/^pihole_munin_//')
+            # Remove if not in new plugin list OR not a valid plugin
+            if ! printf "%s\n" "${plugins}" | grep -qw "${plugin_name}" && printf "%s\n" "${valid_plugins}" | grep -qw "${plugin_name}"; then
+                # Keep valid plugins not in the new list
+                continue
+            fi
+            if ! printf "%s\n" "${valid_plugins}" | grep -qw "${plugin_name}"; then
+                # Remove invalid plugins
+                printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugin_symlink}${TEXT_RESET}"
+                if [ "$dry_run" -eq 0 ]; then
+                    rm -f "${plugin_symlink}" || {
+                        printf "%s\n" "  [❌] Failed to remove plugin '${plugin_symlink}'\n" >&2
+                        exit 1
+                    }
+                fi
             fi
         done
         printf "\n  %s Success.\n\n" \

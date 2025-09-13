@@ -3449,19 +3449,18 @@ pihole_munin_install() {
     done
     # Remove old plugin symlinks if needed
     if [ "$plugins_to_clean" -eq 1 ]; then
-        # Remove only obsolete plugin symlinks
-        printf "\n  %s Cleaning obsolete plugin symlinks …\n" \
-            "$( [ "${dry_run}" -eq 0 ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
+        cleaned_any="0"
         for plugin_symlink in "${plugins_enabled}"/pihole_munin_*; do
             [ ! -e "${plugin_symlink}" ] && continue
             plugin_name=$(basename "${plugin_symlink}" | sed 's/^pihole_munin_//')
-            # Remove if not in new plugin list OR not a valid plugin
-            if ! printf "%s\n" "${plugins}" | grep -qw "${plugin_name}" && printf "%s\n" "${valid_plugins}" | grep -qw "${plugin_name}"; then
-                # Keep valid plugins not in the new list
-                continue
-            fi
-            if ! printf "%s\n" "${valid_plugins}" | grep -qw "${plugin_name}"; then
-                # Remove invalid plugins
+            # Remove if not in new plugin list AND not a valid plugin
+            if ! printf "%s\n" "${plugins}" | grep -qw "${plugin_name}" && ! printf "%s\n" "${valid_plugins}" | grep -qw "${plugin_name}"; then
+                # Print header only once, when first obsolete symlink is found
+                if [ "${cleaned_any}" = "0" ]; then
+                    printf "\n  %s Cleaning obsolete plugin symlinks …\n" \
+                        "$( [ "${dry_run}" -eq 0 ] && printf "[🧼]" || printf "[🧼] (DRY RUN)" )"
+                    cleaned_any="1"
+                fi
                 printf "%b\n" "       ${TEXT_LIGHTBLUE}${plugin_symlink}${TEXT_RESET}"
                 if [ "$dry_run" -eq 0 ]; then
                     rm -f "${plugin_symlink}" || {
@@ -3471,8 +3470,10 @@ pihole_munin_install() {
                 fi
             fi
         done
-        printf "\n  %s Success.\n\n" \
-            "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        if [ "${cleaned_any}" = "1" ]; then
+            printf "\n  %s Success.\n\n" \
+                "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        fi
     fi
     # Check plugin file exists
     pihole_munin_check_plugin_file

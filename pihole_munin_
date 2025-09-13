@@ -3373,7 +3373,7 @@ pihole_munin_restart_node_suggestion() {
     printf "\n%s\n\n%s\n%b\n\n" \
         "  [ℹ️] Please restart the Munin node." \
         "       Example:" \
-        "       ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ sudo systemctl restart munin-node.service"
+        "       ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ ${TEXT_WHITE}sudo systemctl restart munin-node.service${TEXT_RESET}"
 }
 
 ###############################################################################
@@ -3494,19 +3494,19 @@ pihole_munin_install() {
     if [ "${dry_run}" -eq 0 ]; then
         # Suggest adding plugin to PATH if not present
         if ! printf "%s" ":$PATH:" | grep -q ":${pihole_munin_path}:"; then
-            printf "%s\n%s\n\n%s\n%b\n%s\n\n%s\n\n%s\n%s\n\n%b\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
+            printf "%s\n%s\n\n%s\n%b\n%b\n\n%s\n\n%s\n%s\n\n%b\n\n%s\n\n%s\n%b\n\n%s\n%s\n" \
                 "  [ℹ️] You can add '${pihole_munin_path}'" \
                 "       to your \$PATH to run pihole_munin_ as a regular command." \
                 "       Example:" \
-                "       ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ P_M_PATH=\"/usr/share/munin/plugins/pihole_munin_\" && \\" \
-                "       export PATH=\"\$PATH:\$PIHOLE_MUNIN_PATH\"" \
+                "       ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ ${TEXT_WHITE}P_M_PATH=\"/usr/share/munin/plugins/pihole_munin_\" && \\" \
+                "       export PATH=\"\$PATH:\$PIHOLE_MUNIN_PATH\"${TEXT_RESET}" \
                 "       This will only last until you close your terminal." \
                 "       To add it permanently, add the following line to your shell profile" \
                 "       (e.g. ~/.bashrc or ~/.profile)." \
                 "       ${TEXT_WHITE}export PATH=\"\$PATH:${pihole_munin_path}\"${TEXT_RESET}" \
                 "       Then restart your terminal or source the file." \
                 "       Example:" \
-                "       ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ source ~/.bashrc" \
+                "       ${TEXT_GREEN}${pihole_munin_user}@${pihole_munin_host}${TEXT_RESET}:${TEXT_LIGHTBLUE}~${TEXT_RESET}$ ${TEXT_WHITE}source ~/.bashrc${TEXT_RESET}" \
                 "       This will add pihole_munin_ to your \$PATH in all future terminal" \
                 "       sessions."
         fi

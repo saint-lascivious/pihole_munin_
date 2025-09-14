@@ -43,7 +43,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.7.0"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.7.1"}"
 
 # Munin documentation
 : <<=cut
@@ -2554,9 +2554,6 @@ pihole_munin_config_unique() {
 # Upstreams Graph Configuration
 ###############################################################################
 
-###############################################################################
-# Upstreams Graph Configuration
-###############################################################################
 pihole_munin_config_upstreams() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
@@ -2570,11 +2567,19 @@ pihole_munin_config_upstreams() {
         "graph_vlabel ${graph_vlabel_upstreams:-"queries / second"}" \
         "graph_width ${graph_width_upstreams:-${graph_width}}"
     upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
+    # This is not the greatest query percentile calculation in the World, no.
+    # This is just a tribute.
+    upstreams_total=$(printf '%s' "${upstreams_response}" | jq '[.upstreams[].count // 0] | add')
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
         raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
         raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
         raw_port=$(printf '%s' "${upstream}" | jq -r '.port // 0')
         upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
+        # Calculate percentage using upstreams_total
+        percent="0"
+        if [ "${upstreams_total}" -gt 0 ]; then
+            percent=$(awk "BEGIN { printf \"%.2f\", (${upstream_count}/${upstreams_total})*100 }")
+        fi
         # Build key: prefer name, else IP
         if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
             upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
@@ -2609,16 +2614,16 @@ pihole_munin_config_upstreams() {
             if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
                 # Name or rev_ptr, combine ip and count in one parenthesis
                 if [ "${upstream_count}" -eq 1 ]; then
-                    upstreams_info="${default_info}, ${upstream_count} query)"
+                    upstreams_info="${default_info}, ${upstream_count} query, ${percent}% of total)"
                 else
-                    upstreams_info="${default_info}, ${upstream_count} queries)"
+                    upstreams_info="${default_info}, ${upstream_count} queries, ${percent}% of total)"
                 fi
             else
                 # Only IP/rev_ptr, just append count
                 if [ "${upstream_count}" -eq 1 ]; then
-                    upstreams_info="${default_info} (${upstream_count} query)"
+                    upstreams_info="${default_info} (${upstream_count} query, ${percent}% of total)"
                 else
-                    upstreams_info="${default_info} (${upstream_count} queries)"
+                    upstreams_info="${default_info} (${upstream_count} queries, ${percent}% of total)"
                 fi
             fi
         else

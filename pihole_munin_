@@ -43,7 +43,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-"6.7.1"}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.8.0}"
 
 # Munin documentation
 : <<=cut
@@ -253,7 +253,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # percent
       env.percent_percent_blocked_crit 90
-      env.percent_percent_blocked_warn 1:85
+      env.percent_percent_blocked_warn 0:85
 
       # status
       env.status_blocking_status_crit 0:1
@@ -1167,7 +1167,7 @@ mkdir -p "${pihole_munin_plugstate}"   # Ensure state directory exists
 ###############################################################################
 
 pihole_munin_auth() {
-    pihole_munin_session_file="${pihole_munin_plugstate}/pihole_session.state"
+    pihole_munin_session_file="${pihole_munin_plugstate}/pihole_munin_session.state"
     # If session caching is enabled and session file exists
     if [ "${session_cache}" -eq 1 ] && [ -r "${pihole_munin_session_file}" ]; then
         session_time=$(head -n 1 "${pihole_munin_session_file}")  # Read timestamp from file
@@ -1945,7 +1945,7 @@ pihole_munin_config_percent() {
         "${percent_percent_blocked_max:-"100"}" \
         "${percent_percent_blocked_min:-"0"}" \
         "${percent_percent_blocked_type:-"${graph_type}"}" \
-        "${percent_percent_blocked_warn:-"1:85"}"
+        "${percent_percent_blocked_warn:-"0:85"}"
 }
 
 ###############################################################################
@@ -1953,25 +1953,52 @@ pihole_munin_config_percent() {
 ###############################################################################
 
 pihole_munin_config_privacy() {
+    # Try to get current privacy level from API (fallback to env/config if not available)
+    privacy_level_val="${privacy_privacy_level:-}"
+    if [ -z "${privacy_level_val}" ]; then
+        ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" 2>/dev/null)
+        privacy_level_val=$(printf "%s" "${ftl_response}" | jq -r '.ftl.privacy_level // empty')
+    fi
+    # Set info string based on privacy level, with documentation link
+    addn_info="See https://docs.pi-hole.net/ftldns/privacylevels/ for more information."
+    case "${privacy_level_val}" in
+        0)
+            privacy_info="Level 0 - show everything: Doesn't hide anything, all statistics are available."
+            ;;
+        1)
+            privacy_info="Level 1 - hide domains: Show and store all domains as hidden. Disables: Top Domains, Top Ads."
+            ;;
+        2)
+            privacy_info="Level 2 - hide domains and clients: Show and store all domains as hidden and clients as 0.0.0.0. Disables: Top Domains, Top Ads, Top Clients, Clients over time."
+            ;;
+        3)
+            privacy_info="Level 3 - anonymous mode: Disable all details except the most anonymous statistics. Disables: Top Domains, Top Ads, Top Clients, Clients over time, Query Log, Long-term database logging."
+            ;;
+        *)
+            privacy_info="Privacy level unknown."
+            ;;
+    esac
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_privacy:-${graph}}" \
         "graph_args ${graph_args_privacy:-"--upper-limit 3 --lower-limit 0"}" \
         "graph_category ${graph_category_privacy:-${graph_category}}" \
         "graph_height ${graph_height_privacy:-${graph_height}}" \
-        "graph_info ${graph_info_privacy:-"This graph shows Pi-hole's privacy level, visit https://docs.pi-hole.net/ftldns/privacylevels/ for more information"}" \
+        "graph_info ${graph_info_privacy:-"This graph shows Pi-hole's privacy level"}" \
         "graph_scale ${graph_scale_privacy:-${graph_scale}}" \
         "graph_title ${graph_title_privacy:-"Pi-hole privacy level"}" \
         "graph_vlabel ${graph_vlabel_privacy:-"show all / 1 / 2 / anonymous"}" \
         "graph_width ${graph_width_privacy:-${graph_width}}"
-    # Print Munin field config for privacy level (single value)
+    # No need for the safe eval handler as there's only one key we care about
+    # and we already know what it is
+    # Print Munin field config for privacy level
     pihole_munin_print \
         "privacy_level" \
         "${privacy_privacy_level_colour:-}" \
         "${privacy_privacy_level_crit:-}" \
         "${privacy_privacy_level_draw:-${graph_draw}}" \
         "${privacy_privacy_level_graph:-"yes"}" \
-        "${privacy_privacy_level_info:-"Pi-hole privacy level"}" \
+        "${privacy_privacy_level_info:-"${privacy_info}  ${addn_info}"}" \
         "${privacy_privacy_level_label:-"privacy level"}" \
         "${privacy_privacy_level_max:-"3"}" \
         "${privacy_privacy_level_min:-"0"}" \
@@ -2337,12 +2364,14 @@ pihole_munin_config_status() {
 # Reverse PTR Lookup Helper
 ###############################################################################
 # Usage: pihole_munin_rev_ptr <ip[:port]>
-# Performs reverse DNS lookup for an IP, caches results in state dir.
+# Performs reverse DNS lookup for an IP, caches results in state dir with TTL.
 ###############################################################################
 
 pihole_munin_rev_ptr() {
     ip_port="$1"
     reverse_lookup_cache="${pihole_munin_plugstate}/pihole_munin_rev_ptr.state"
+    rev_ptr_ttl="${rev_ptr_ttl:-86400}"  # TTL in seconds (default: 24 hours)
+    now=$(date +%s)
     # Remove brackets for IPv6 [::1]:5353
     ip_port=$(printf "%s" "${ip_port}" | sed 's/^\[\(.*\)\]$/\1/')
     # Extract IP from IP:PORT
@@ -2353,38 +2382,111 @@ pihole_munin_rev_ptr() {
     else
         ip="${ip_port}"
     fi
-    # Check cache first
+    # Check cache first (handle migration from old format)
     if grep -q "^${ip} " "${reverse_lookup_cache}" 2>/dev/null; then
-        cached=$(grep "^${ip} " "${reverse_lookup_cache}" | head -n1 | cut -d' ' -f2-)
-        if [ "${cached}" = "-" ]; then
-            printf "%s\n" "${ip_port}"
-        else
-            printf "%s\n" "${cached}"
+        cached_line=$(grep "^${ip} " "${reverse_lookup_cache}" | head -n1)
+        fields=$(printf "%s" "${cached_line}" | awk '{print NF}')
+        if [ "${fields}" -eq 2 ]; then
+            # Old format: <ip> <hostname>
+            cached_val=$(printf "%s" "${cached_line}" | cut -d' ' -f2)
+            cached_time="${now}"
+            # Rewrite entry with timestamp
+            grep -v "^${ip} " "${reverse_lookup_cache}" > "${reverse_lookup_cache}.tmp"
+            printf "%s %s %s\n" "${ip}" "${cached_time}" "${cached_val}" >> "${reverse_lookup_cache}.tmp"
+            mv "${reverse_lookup_cache}.tmp" "${reverse_lookup_cache}"
+        elif [ "${fields}" -ge 3 ]; then
+            # New format: <ip> <timestamp> <hostname>
+            cached_time=$(printf "%s" "${cached_line}" | awk '{print $2}')
+            cached_val=$(printf "%s" "${cached_line}" | cut -d' ' -f3-)
         fi
-        return
+        # If cache is still valid, use it
+        if [ -n "${cached_time}" ] && [ $((now - cached_time)) -lt "${rev_ptr_ttl}" ]; then
+            if [ "${cached_val}" = "-" ]; then
+                printf "%s\n" "${ip_port}"
+            else
+                printf "%s\n" "${cached_val}"
+            fi
+            return
+        fi
+        # Otherwise, remove stale entry
+        grep -v "^${ip} " "${reverse_lookup_cache}" > "${reverse_lookup_cache}.tmp" && mv "${reverse_lookup_cache}.tmp" "${reverse_lookup_cache}"
     fi
     # Do reverse lookup
     hostname=$(getent hosts "${ip}" 2>/dev/null | awk '{print $2}' | head -n1)
     if [ -z "${hostname}" ]; then
-        hostname=$(dig +time=2 +short -x "${ip}" | head -n1)
+        dig_output=$(dig +time=10 +short -x "${ip}" 2>&1)
+        dig_status=$?
+        # Only accept dig output if it looks like a valid hostname (not empty, not error)
+        if [ "${dig_status}" -eq 0 ] && [ -n "${dig_output}" ] && ! printf "%s" "${dig_output}" | grep -q '^;;'; then
+            hostname=$(printf "%s" "${dig_output}" | head -n1)
+        fi
     fi
-    # Cache result (negative or positive)
-    if [ -n "${hostname}" ]; then
-        printf "%s %s\n" "${ip}" "${hostname}" >> "${reverse_lookup_cache}"
+    # Cache result (negative only if both failed and dig did not timeout)
+    if [ -n "${hostname}" ] && ! printf "%s" "${hostname}" | grep -q '^;;'; then
+        printf "%s %s %s\n" "${ip}" "${now}" "${hostname}" >> "${reverse_lookup_cache}"
         printf "%s\n" "${hostname}"
     else
-        printf "%s -\n" "${ip}" >> "${reverse_lookup_cache}"
+        if [ "${dig_status:-0}" -eq 0 ] && [ -z "${hostname}" ]; then
+            printf "%s %s -\n" "${ip}" "${now}" >> "${reverse_lookup_cache}"
+        fi
         printf "%s\n" "${ip_port}"
     fi
 }
 
+###############################################################################
+# Top N Limit Enforcement
+###############################################################################
+# Enforce sensible limits on number of top clients/domains to fetch and display
+# (default: 10, min: 1, max: 30)
+
+top_n="${top_n:-10}"
+
+if [ "${top_n}" -gt 30 ]; then
+    top_n="30"
+elif [ "${top_n}" -lt 1 ]; then
+    top_n="1"
+fi
+
+if [ -n "${top_clients_top_n}" ]; then
+    if [ "${top_clients_top_n}" -gt 30 ]; then
+        top_clients_top_n="30"
+    elif [ "${top_clients_top_n}" -lt 1 ]; then
+        top_clients_top_n="1"
+    fi
+fi
+
+if [ -n "${top_domains_top_n}" ]; then
+    if [ "${top_domains_top_n}" -gt 30 ]; then
+        top_domains_top_n="30"
+    elif [ "${top_domains_top_n}" -lt 1 ]; then
+        top_domains_top_n="1"
+    fi
+fi
 
 ###############################################################################
 # Top Clients Graph Configuration
 ###############################################################################
 
 pihole_munin_config_top_clients() {
-    # Print Munin graph config lines, using plugin-specific overrides if set
+    top_clients_seentags="${pihole_munin_plugstate}/pihole_munin_top_clients_seentags.state"
+    tmp_state=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "top_clients_state_tmp")
+    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
+    # Extract current top clients and their counts
+    printf "%s" "${top_clients_response}" | jq -r ".clients[:${top_clients_top_n:-${top_n}}][] | \"\(.name) \(.count)\"" | awk 'NF == 2' > "${tmp_state}"
+    # Merge new key-value pairs into persistent seentags file, keeping latest value for each key
+    if [ -s "${tmp_state}" ]; then
+        if [ -f "${top_clients_seentags}" ]; then
+            awk '
+                { a[$1]=$2 }
+                END { for (k in a) print k, a[k] }
+            ' "${top_clients_seentags}" "${tmp_state}" > "${top_clients_seentags}.merged"
+            mv "${top_clients_seentags}.merged" "${top_clients_seentags}"
+        else
+            mv "${tmp_state}" "${top_clients_seentags}"
+        fi
+    fi
+    rm -f "${tmp_state}"
+    # Output Munin graph config header
     printf "%s\n" \
         "graph ${graph_top_clients:-${graph}}" \
         "graph_args ${graph_args_top_clients:-${graph_args}}" \
@@ -2395,71 +2497,63 @@ pihole_munin_config_top_clients() {
         "graph_title ${graph_title_top_clients:-"Pi-hole top clients"}" \
         "graph_vlabel ${graph_vlabel_top_clients:-"queries / second"}" \
         "graph_width ${graph_width_top_clients:-${graph_width}}"
-    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
-    printf "%s" "${top_clients_response}" | jq -c '.clients[]' | while read -r client; do
-        ip=$(printf '%s' "${client}" | jq -r '.ip')
-        name=$(printf '%s' "${client}" | jq -r '.name')
-        count=$(printf '%s' "${client}" | jq -r '.count')
-        key=$(printf '%s' "${name}" | tr -c 'a-zA-Z0-9' '_' )
-        [ -z "${key}" ] && key=$(printf '%s' "${ip}" | tr -c 'a-zA-Z0-9' '_' )
-        # Build label and info: prefer name, then rev_ptr, then IP
-        if [ -n "${name}" ] && [ "${name}" != "null" ]; then
-            default_label="${name}"
-            default_info="Top client ${name} (${ip}"
-        else
-            rev_label=$(pihole_munin_rev_ptr "${ip}")
-            if [ "${rev_label}" != "${ip}" ]; then
-                default_label="${rev_label}"
-                default_info="Top client ${rev_label} (${ip}"
-            else
-                default_label="${ip}"
-                default_info="Top client ${ip}"
-            fi
-        fi
-        # Per-field overrides
-        pihole_munin_safe_eval top_clients_colour "top_clients_" "${key}" "_colour" ""
-        pihole_munin_safe_eval top_clients_crit "top_clients_" "${key}" "_crit" ""
-        pihole_munin_safe_eval top_clients_draw "top_clients_" "${key}" "_draw" "${graph_draw}"
-        pihole_munin_safe_eval top_clients_graph "top_clients_" "${key}" "_graph" "yes"
-        pihole_munin_safe_eval top_clients_type "top_clients_" "${key}" "_type" "DERIVE"
-        # Info string: for DERIVE, combine IP and count in one parenthesis if name/rev_ptr, else just append count
-        if [ "${top_clients_type:-DERIVE}" = "DERIVE" ]; then
-            if [ "${default_info}" = "Top client ${ip}" ]; then
-                # Only IP, just append count
-                if [ "${count}" -eq 1 ]; then
-                    top_clients_info="${default_info} (${count} query)"
+    # Print Munin field definitions for all keys in seentags file, sorted by value (highest first)
+    if [ -s "${top_clients_seentags}" ]; then
+        sort -k2,2nr "${top_clients_seentags}" | while read -r raw_key raw_value; do
+            top_clients_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
+            case "${top_clients_key}" in
+                [0-9]*) top_clients_key="top_clients_${top_clients_key}" ;;
+            esac
+            default_label="${raw_key}"
+            default_info="Pi-hole top client ${raw_key}"
+            pihole_munin_safe_eval top_clients_colour "top_clients_" "${top_clients_key}" "_colour" ""
+            pihole_munin_safe_eval top_clients_crit "top_clients_" "${top_clients_key}" "_crit" ""
+            pihole_munin_safe_eval top_clients_draw "top_clients_" "${top_clients_key}" "_draw" "${graph_draw}"
+            pihole_munin_safe_eval top_clients_graph "top_clients_" "${top_clients_key}" "_graph" "yes"
+            pihole_munin_safe_eval top_clients_type "top_clients_" "${top_clients_key}" "_type" "DERIVE"
+            # Info string: singular/plural for DERIVE, else allow override
+            if [ "${top_clients_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${raw_value}" -eq 1 ]; then
+                    top_clients_info="${default_info} (${raw_value} query)"
                 else
-                    top_clients_info="${default_info} (${count} queries)"
+                    top_clients_info="${default_info} (${raw_value} queries)"
                 fi
             else
-                # Name or rev_ptr, combine ip and count in one parenthesis
-                if [ "${count}" -eq 1 ]; then
-                    top_clients_info="${default_info}, ${count} query)"
-                else
-                    top_clients_info="${default_info}, ${count} queries)"
-                fi
+                pihole_munin_safe_eval top_clients_info "top_clients_" "${top_clients_key}" "_info" "${default_info}"
             fi
-        else
-            # Non-DERIVE: use default info, close parenthesis if needed
-            pihole_munin_safe_eval top_clients_info "top_clients_" "${key}" "_info" "${default_info})"
-        fi
-        pihole_munin_safe_eval top_clients_label "top_clients_" "${key}" "_label" "${default_label}"
-        pihole_munin_safe_eval top_clients_max "top_clients_" "${key}" "_max" ""
-        pihole_munin_safe_eval top_clients_min "top_clients_" "${key}" "_min" "0"
-        pihole_munin_safe_eval top_clients_warn "top_clients_" "${key}" "_warn" ""
+            pihole_munin_safe_eval top_clients_label "top_clients_" "${top_clients_key}" "_label" "${default_label}"
+            pihole_munin_safe_eval top_clients_max "top_clients_" "${top_clients_key}" "_max" ""
+            pihole_munin_safe_eval top_clients_min "top_clients_" "${top_clients_key}" "_min" "0"
+            pihole_munin_safe_eval top_clients_warn "top_clients_" "${top_clients_key}" "_warn" ""
+            # Print Munin field config for this client key
+            pihole_munin_print \
+                "${top_clients_key}" \
+                "${top_clients_colour:-}" \
+                "${top_clients_crit:-}" \
+                "${top_clients_draw:-}" \
+                "${top_clients_graph:-}" \
+                "${top_clients_info:-}" \
+                "${top_clients_label:-}" \
+                "${top_clients_max:-}" \
+                "${top_clients_min:-}" \
+                "${top_clients_type:-}" \
+                "${top_clients_warn:-}"
+        done
+    else
+        # If no clients, output a placeholder field
         pihole_munin_print \
-            "${key}" \
-            "${top_clients_colour:-}" \
-            "${top_clients_crit:-}" \
-            "${top_clients_draw:-}" \
-            "${top_clients_graph:-}" \
-            "${top_clients_info:-}" \
-            "${top_clients_label:-}" \
-            "${top_clients_max:-}" \
-            "${top_clients_min:-}" \
-            "${top_clients_type:-}" \
-            "${top_clients_warn:-}"
-    done
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No clients" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type:-DERIVE}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2467,6 +2561,25 @@ pihole_munin_config_top_clients() {
 ###############################################################################
 
 pihole_munin_config_top_domains() {
+    top_domains_seentags="${pihole_munin_plugstate}/pihole_munin_top_domains_seentags.state"
+    tmp_state=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "top_domains_state_tmp")
+    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
+    # Extract current top domains and their counts
+    printf "%s" "${top_domains_response}" | jq -r ".domains[:${top_domains_top_n:-${top_n}}][] | \"\(.domain) \(.count)\"" | awk 'NF == 2' > "${tmp_state}"
+    # Merge new key-value pairs into persistent seentags file, keeping latest value for each key
+    if [ -s "${tmp_state}" ]; then
+        if [ -f "${top_domains_seentags}" ]; then
+            awk '
+                { a[$1]=$2 }
+                END { for (k in a) print k, a[k] }
+            ' "${top_domains_seentags}" "${tmp_state}" > "${top_domains_seentags}.merged"
+            mv "${top_domains_seentags}.merged" "${top_domains_seentags}"
+        else
+            mv "${tmp_state}" "${top_domains_seentags}"
+        fi
+    fi
+    rm -f "${tmp_state}"
+    # Output Munin graph config header
     printf "%s\n" \
         "graph ${graph_top_domains:-${graph}}" \
         "graph_args ${graph_args_top_domains:-${graph_args}}" \
@@ -2477,46 +2590,63 @@ pihole_munin_config_top_domains() {
         "graph_title ${graph_title_top_domains:-"Pi-hole top domains"}" \
         "graph_vlabel ${graph_vlabel_top_domains:-"queries / second"}" \
         "graph_width ${graph_width_top_domains:-${graph_width}}"
-    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
-    printf "%s" "${top_domains_response}" | jq -c '.domains[]' | while read -r domain; do
-        dom=$(printf '%s' "${domain}" | jq -r '.domain')
-        count=$(printf '%s' "${domain}" | jq -r '.count')
-        key=$(printf '%s' "${dom}" | tr -c 'a-zA-Z0-9' '_' )
-        default_label="${dom}"
-        default_info="Top domain ${dom}"
-        # Per-field overrides
-        pihole_munin_safe_eval top_domains_colour "top_domains_" "${key}" "_colour" ""
-        pihole_munin_safe_eval top_domains_crit "top_domains_" "${key}" "_crit" ""
-        pihole_munin_safe_eval top_domains_draw "top_domains_" "${key}" "_draw" "${graph_draw}"
-        pihole_munin_safe_eval top_domains_graph "top_domains_" "${key}" "_graph" "yes"
-        # Conditionally append value to info for DERIVE type
-        pihole_munin_safe_eval top_domains_type "top_domains_" "${key}" "_type" "DERIVE"
-        if [ "${top_domains_type:-DERIVE}" = "DERIVE" ]; then
-            if [ "${count}" -eq 1 ]; then
-                top_domains_info="${default_info} (${count} query)"
+    # Print Munin field definitions for all keys in seentags file, sorted by value (highest first)
+    if [ -s "${top_domains_seentags}" ]; then
+        sort -k2,2nr "${top_domains_seentags}" | while read -r raw_key raw_value; do
+            top_domains_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
+            case "${top_domains_key}" in
+                [0-9]*) top_domains_key="top_domains_${top_domains_key}" ;;
+            esac
+            default_label="${raw_key}"
+            default_info="Pi-hole top domain ${raw_key}"
+            pihole_munin_safe_eval top_domains_colour "top_domains_" "${top_domains_key}" "_colour" ""
+            pihole_munin_safe_eval top_domains_crit "top_domains_" "${top_domains_key}" "_crit" ""
+            pihole_munin_safe_eval top_domains_draw "top_domains_" "${top_domains_key}" "_draw" "${graph_draw}"
+            pihole_munin_safe_eval top_domains_graph "top_domains_" "${top_domains_key}" "_graph" "yes"
+            pihole_munin_safe_eval top_domains_type "top_domains_" "${top_domains_key}" "_type" "DERIVE"
+            # Info string: singular/plural for DERIVE, else allow override
+            if [ "${top_domains_type:-DERIVE}" = "DERIVE" ]; then
+                if [ "${raw_value}" -eq 1 ]; then
+                    top_domains_info="${default_info} (${raw_value} query)"
+                else
+                    top_domains_info="${default_info} (${raw_value} queries)"
+                fi
             else
-                top_domains_info="${default_info} (${count} queries)"
+                pihole_munin_safe_eval top_domains_info "top_domains_" "${top_domains_key}" "_info" "${default_info}"
             fi
-        else
-            pihole_munin_safe_eval top_domains_info "top_domains_" "${key}" "_info" "${default_info}"
-        fi
-        pihole_munin_safe_eval top_domains_label "top_domains_" "${key}" "_label" "${default_label}"
-        pihole_munin_safe_eval top_domains_max "top_domains_" "${key}" "_max" ""
-        pihole_munin_safe_eval top_domains_min "top_domains_" "${key}" "_min" "0"
-        pihole_munin_safe_eval top_domains_warn "top_domains_" "${key}" "_warn" ""
+            pihole_munin_safe_eval top_domains_label "top_domains_" "${top_domains_key}" "_label" "${default_label}"
+            pihole_munin_safe_eval top_domains_max "top_domains_" "${top_domains_key}" "_max" ""
+            pihole_munin_safe_eval top_domains_min "top_domains_" "${top_domains_key}" "_min" "0"
+            pihole_munin_safe_eval top_domains_warn "top_domains_" "${top_domains_key}" "_warn" ""
+            # Print Munin field config for this domain key
+            pihole_munin_print \
+                "${top_domains_key}" \
+                "${top_domains_colour:-}" \
+                "${top_domains_crit:-}" \
+                "${top_domains_draw:-}" \
+                "${top_domains_graph:-}" \
+                "${top_domains_info:-}" \
+                "${top_domains_label:-}" \
+                "${top_domains_max:-}" \
+                "${top_domains_min:-}" \
+                "${top_domains_type:-}" \
+                "${top_domains_warn:-}"
+        done
+    else
+        # If no domains, output a placeholder field
         pihole_munin_print \
-            "${key}" \
-            "${top_domains_colour:-}" \
-            "${top_domains_crit:-}" \
-            "${top_domains_draw:-}" \
-            "${top_domains_graph:-}" \
-            "${top_domains_info:-}" \
-            "${top_domains_label:-}" \
-            "${top_domains_max:-}" \
-            "${top_domains_min:-}" \
-            "${top_domains_type:-}" \
-            "${top_domains_warn:-}"
-    done
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No domains" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type:-DERIVE}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2592,7 +2722,7 @@ pihole_munin_config_upstreams() {
         esac
         # Port string for label/info
         port_str=""
-        if [ "${raw_port}" -gt 0 ] && [ "${raw_port}" -le 65535 ] && [ "${raw_port}" -ne 53 ]; then
+        if [ -n "${raw_port}" ] && printf "%s" "${raw_port}" | grep -Eq '^[0-9]+$' && [ "${raw_port}" -gt 0 ] && [ "${raw_port}" -le 65535 ] && [ "${raw_port}" -ne 53 ]; then
             port_str=":${raw_port}"
         fi
         # Build label and info: prefer name, then rev_ptr, then IP
@@ -3015,15 +3145,38 @@ pihole_munin_fetch_status() {
 ###############################################################################
 
 pihole_munin_fetch_top_clients() {
+    top_clients_seentags="${pihole_munin_plugstate}/pihole_munin_top_clients_seentags.state"
     top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
-    printf "%s" "${top_clients_response}" | jq -c '.clients[]' | while read -r client; do
-        ip=$(printf '%s' "${client}" | jq -r '.ip')
-        name=$(printf '%s' "${client}" | jq -r '.name')
-        count=$(printf '%s' "${client}" | jq -r '.count')
-        key=$(printf '%s' "${name}" | tr -c 'a-zA-Z0-9' '_' )
-        [ -z "${key}" ] && key=$(printf '%s' "${ip}" | tr -c 'a-zA-Z0-9' '_' )
-        printf "%s.value %s\n" "${key}" "${count}"
-    done
+    tmp_state=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "top_clients_state_tmp")
+    # Extract current top clients and their counts
+    printf "%s" "${top_clients_response}" | jq -r ".clients[:${top_clients_top_n:-${top_n}}][] | \"\(.name) \(.count)\"" | awk 'NF == 2' > "${tmp_state}.filtered"
+    # Merge new values into persistent seentags file, keeping latest value for each key
+    if [ -f "${top_clients_seentags}" ]; then
+        awk '
+            { a[$1]=$2 }
+            END { for (k in a) print k, a[k] }
+        ' "${top_clients_seentags}" "${tmp_state}.filtered" > "${top_clients_seentags}.merged"
+        mv "${top_clients_seentags}.merged" "${top_clients_seentags}"
+    else
+        mv "${tmp_state}.filtered" "${top_clients_seentags}"
+    fi
+    rm -f "${tmp_state}" "${tmp_state}.filtered"
+    # Output values for Munin, fill-forward last known value, print U if missing
+    if [ ! -s "${top_clients_seentags}" ]; then
+        printf "none.value 0\n"
+        return
+    fi
+    while read -r client num_queries; do
+        top_clients_key="$(printf "%s" "${client}" | tr -c 'a-zA-Z0-9' '_')"
+        case "${top_clients_key}" in
+            [0-9]*) top_clients_key="top_clients_${top_clients_key}" ;;
+        esac
+        if [ -n "${num_queries}" ]; then
+            printf "%s.value %s\n" "${top_clients_key}" "${num_queries}"
+        else
+            printf "%s.value U\n" "${top_clients_key}"
+        fi
+    done < "${top_clients_seentags}"
 }
 
 ###############################################################################
@@ -3031,13 +3184,38 @@ pihole_munin_fetch_top_clients() {
 ###############################################################################
 
 pihole_munin_fetch_top_domains() {
+    top_domains_seentags="${pihole_munin_plugstate}/pihole_munin_top_domains_seentags.state"
     top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
-    printf "%s" "${top_domains_response}" | jq -c '.domains[]' | while read -r domain; do
-        dom=$(printf '%s' "${domain}" | jq -r '.domain')
-        count=$(printf '%s' "${domain}" | jq -r '.count')
-        key=$(printf '%s' "${dom}" | tr -c 'a-zA-Z0-9' '_' )
-        printf "%s.value %s\n" "${key}" "${count}"
-    done
+    tmp_state=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "top_domains_state_tmp")
+    # Extract current top domains and their counts
+    printf "%s" "${top_domains_response}" | jq -r ".domains[:${top_domains_top_n:-${top_n}}][] | \"\(.domain) \(.count)\"" | awk 'NF == 2' > "${tmp_state}.filtered"
+    # Merge new values into persistent seentags file, keeping latest value for each key
+    if [ -f "${top_domains_seentags}" ]; then
+        awk '
+            { a[$1]=$2 }
+            END { for (k in a) print k, a[k] }
+        ' "${top_domains_seentags}" "${tmp_state}.filtered" > "${top_domains_seentags}.merged"
+        mv "${top_domains_seentags}.merged" "${top_domains_seentags}"
+    else
+        mv "${tmp_state}.filtered" "${top_domains_seentags}"
+    fi
+    rm -f "${tmp_state}" "${tmp_state}.filtered"
+    # Output values for Munin, fill-forward last known value, print U if missing
+    if [ ! -s "${top_domains_seentags}" ]; then
+        printf "none.value 0\n"
+        return
+    fi
+    while read -r domain num_queries; do
+        top_domains_key="$(printf "%s" "${domain}" | tr -c 'a-zA-Z0-9' '_')"
+        case "${top_domains_key}" in
+            [0-9]*) top_domains_key="top_domains_${top_domains_key}" ;;
+        esac
+        if [ -n "${num_queries}" ]; then
+            printf "%s.value %s\n" "${top_domains_key}" "${num_queries}"
+        else
+            printf "%s.value U\n" "${top_domains_key}"
+        fi
+    done < "${top_domains_seentags}"
 }
 
 ###############################################################################
@@ -3527,9 +3705,9 @@ pihole_munin_install() {
 #   pihole_munin_flush [<option>]
 #
 # Description:
-#   Removes all cached plugin state files from the plugin state directory,
-#   forcing fresh API fetches on the next run. Supports dry run mode to
-#   preview actions without making changes.
+#   Removes all cached plugin state and seentag files from the plugin state
+#   directory, forcing fresh API fetches on the next run.
+#   Supports dry run mode to preview actions without making changes.
 #
 # Arguments:
 #   <option>   - Options:
@@ -3549,6 +3727,7 @@ pihole_munin_install() {
 
 pihole_munin_flush() {
     dry_run="0"
+    flushed=0
     # Parse options for dry run
     for option in "$@"; do
         case "${option}" in
@@ -3557,6 +3736,7 @@ pihole_munin_flush() {
     done
     # Check for required directories
     pihole_munin_check_required_dirs "${pihole_munin_plugstate}"
+    # Find all .state files
     statefiles=$(find "${pihole_munin_plugstate}" -maxdepth 1 -type f -name 'pihole_munin_*.state' 2>/dev/null)
     if [ -z "${statefiles}" ]; then
         printf "%s\n" "  [ℹ️] No state files to flush in '${pihole_munin_plugstate}'."
@@ -3564,16 +3744,22 @@ pihole_munin_flush() {
         printf "\n  %s Flushing plugin state files …\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[🚽]" || printf "[🚽] (DRY RUN)" )"
         for statefile_to_flush in ${statefiles}; do
-            printf "%b\n" "       ${statefile_to_flush}"
+            # Truncate path for terminal width, show basename only
+            statefile=$(basename "${statefile_to_flush}")
             if [ "$dry_run" -eq 0 ]; then
-                rm -f "${statefile_to_flush}" || {
+                if rm -f "${statefile_to_flush}"; then
+                    flushed=$((flushed + 1))
+                else
                     printf "%s\n" "  [❌] Failed to remove statefile '${statefile_to_flush}'" >&2
                     exit 1
-                }
+                fi
             fi
+            printf "%b\n" "       ${TEXT_LIGHTBLUE}${statefile}${TEXT_RESET}"
         done
         printf "\n  %s Success.\n" \
             "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
+        printf "\n  [ℹ️] Flushed %d file%s.\n" \
+            "$flushed" "$( [ "$flushed" -eq 1 ] && printf "" || printf "s" )"
     fi
 }
 
@@ -4619,7 +4805,7 @@ case "${1}" in
             "-U"|"update"|"--update") pihole_munin_root "$@" ;;
         esac
         ;;
-    "-f"|"flush"|"--flush-state"|"setpassword"|"-t"|"test"|"--test-plugins")
+    "setpassword"|"-t"|"test"|"--test-plugins")
         pihole_munin_root "$@"
         ;;
 esac
@@ -4659,12 +4845,12 @@ case "${1}" in
         fi
         ;;
     "fetch") pihole_munin_fetch_handler ;;
-    "flush") pihole_munin_flush "$@" ;;
+    "-f"|"flush"|"--flush-state") pihole_munin_flush "$@" ;;
     "-h"|"help"|"--help")
         case "${2}" in
             "") pihole_munin_help ;;
             "-a"|"admin"|"--admin") pihole_munin_help "${2}" "${3:-}" ;;
-            "autoconf"|"config"|"fetch"|"flush"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
+            "autoconf"|"config"|"fetch"|"-f"|"flush"|"--flush-state"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
                 pihole_munin_help "${2}"
                 ;;
             *)

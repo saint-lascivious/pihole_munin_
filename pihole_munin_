@@ -41,7 +41,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.9.1}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.9.2}"
 
 # Munin documentation
 : <<=cut
@@ -4041,7 +4041,7 @@ pihole_munin_uninstall() {
     printf "  %s Disabling pihole_munin_ plugins …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🔴]" || printf "[🔴] (DRY RUN)" )"
     # Remove symlinks for each plugin
-    for plugin in ${plugins}; do
+    for plugin in ${valid_plugins}; do
         if [ -L "${plugins_enabled}/pihole_munin_${plugin}" ]; then
             if [ "${dry_run}" -eq 0 ]; then
                 rm -f "${plugins_enabled}/pihole_munin_${plugin}" || {

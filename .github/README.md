@@ -114,11 +114,14 @@
     ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache
     ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_cache_by_type
     ln -s /usr/share/munin/plugins/pihole_munin_ /etc/munin/plugins/pihole_munin_clients
-    # repeat for other plugins as needed
+    # repeat for other plugins as desired
     ```
 
-    The full list of plugins is:
-    `pihole_munin_cache`, `pihole_munin_cache_by_type`, `pihole_munin_clients`, `pihole_munin_dnsmasq`, `pihole_munin_domains`, `pihole_munin_gravity`, `pihole_munin_percent_blocked`, `pihole_munin_privacy_level`, `pihole_munin_queries`, `pihole_munin_queries_by_status`, `pihole_munin_replies_by_type`, and `pihole_munin_blocking_status`.
+    The list of default plugins is:
+    `pihole_munin_cache`, `pihole_munin_cache_by_type`, `pihole_munin_clients`, `pihole_munin_frequency`, `pihole_munin_overview`, `pihole_munin_percent`, `pihole_munin_queries`, `pihole_munin_queries_by_status`, `pihole_munin_queries_by_type`, `pihole_munin_replies`, and `pihole_munin_replies_by_type`.
+
+    Additional ("boring", primarily static, or requiring lower privacy levels) plugins:
+    `pihole_munin_dnsmasq`, `pihole_munin_domains`, `pihole_munin_gravity`, `pihole_munin_privacy`, `pihole_munin_status`, `pihole_munin_unique`, `pihole_munin_top_clients`, `pihole_munin_top_domains`, `pihole_munin_upstreams`, and `pihole_munin_version`.
 
 4. Restart the Munin node
     ```sh

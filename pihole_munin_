@@ -25,8 +25,6 @@
 # - fongd (Derek Fong), 2025
 #   https://github.com/fongd
 # - Bud, Jae and Tig
-#   ""Supervising.""
-#   ""Definitely Not Jumping On The Bench.""
 
 ###############################################################################
 # With Thanks To
@@ -43,7 +41,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.8.0}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.9.0}"
 
 # Munin documentation
 : <<=cut
@@ -91,18 +89,40 @@ This is a wildcard plugin.
   replies_by_type: Shows Pi-hole's replies by record type
   status: Shows Pi-hole's blocking status
   unique: Shows the number of unique domains queried by Pi-hole
-
   top_clients: Shows Pi-hole's top clients by query count
   top_domains: Shows Pi-hole's top domains by query count
   upstreams: Shows the query counts for each of Pi-hole's upstream destinations
+  version: Shows the version status of Pi-hole components
 
-Note: The 'top_clients', 'top_domains', and 'upstreams' plugins are not enabled by default due to privacy consideration and privacy level restriction.
+You can override which plugins are enabled by setting the 'plugins' variable.
 
-  top_domains: Requires Pi-hole privacy level 0 ("show everything"). Disabled at levels 1, 2, and 3.
-  top_clients: Requires Pi-hole privacy level 0 or 1 ("hide domains"). Disabled at levels 2 and 3.
-  upstreams: Requires Pi-hole privacy level 0, 1, or 2 ("hide domains and clients"). Disabled at level 3.
+Invalid plugin names will be skipped with a warning.
 
-If your Pi-hole privacy level is set higher, these plugins will not display data.
+E.g.
+
+  env.plugins cache clients queries
+
+Note: This affects the 'install', 'test' and 'uninstall' commands if executed via 'munin-run'.
+
+This is somewhat spooky, and ideally should be avoided.
+
+Specify the plugins to be installed via the command line when using the 'admin' command (recommended).
+
+E.g.
+
+  ./pihole_munin_ admin install cache clients queries
+
+If 'all' is specified as a plugin, all available plugins will be enabled.
+
+E.g.
+
+  ./pihole_munin_ admin install all
+
+Or use the PLUGINS environment variable to govern the plugin list when using the 'admin' command.
+
+E.g.
+
+  PLUGINS="cache clients queries" ./pihole_munin_ admin install
 
 =head1 USAGE
 
@@ -261,40 +281,29 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       ### PLUGINS ###
 
-      # cache: Shows Pi-hole's cache
-      # cache_by_type: Shows Pi-hole's cached records by type
-      # clients: Shows active and total Pi-hole clients
+      # Plugins with an asterisk (*) are enabled by default.
+
+      # cache*: Shows Pi-hole's cache
+      # cache_by_type*: Shows Pi-hole's cached records by type
+      # clients*: Shows active and total Pi-hole clients
       # dnsmasq: Shows various Pi-hole FTLDNS dnsmasq statistics
       # domains: Shows the number of domains being blocked by Pi-hole
-      # frequency: Shows Pi-hole's query frequency
+      # frequency*: Shows Pi-hole's query frequency
       # gravity: Shows various Pi-hole gravity database statistics
-      # overview: Shows an overview of Pi-hole's DNS traffic
-      # percent: Shows Pi-hole's blocked query percentage
+      # overview*: Shows an overview of Pi-hole's DNS traffic
+      # percent*: Shows Pi-hole's blocked query percentage
       # privacy: Shows Pi-hole's privacy level
-      # queries: Shows Pi-hole's queries
-      # queries_by_status: Shows Pi-hole's queries by status
-      # queries_by_type: Shows Pi-hole's queries by record type
-      # replies: Shows Pi-hole's replies
-      # replies_by_type: Shows Pi-hole's replies by record type
+      # queries*: Shows Pi-hole's queries
+      # queries_by_status*: Shows Pi-hole's queries by status
+      # queries_by_type*: Shows Pi-hole's queries by record type
+      # replies*: Shows Pi-hole's replies
+      # replies_by_type*: Shows Pi-hole's replies by record type
       # status: Shows Pi-hole's blocking status
       # unique: Shows the number of unique domains queried by Pi-hole
-
       # top_clients: Shows Pi-hole's top clients by query count
       # top_domains: Shows Pi-hole's top domains by query count
       # upstreams: Shows the query counts for each of Pi-hole's upstream destinations
-
-      # Note: The 'top_clients', 'top_domains', and 'upstreams' plugins are
-      # not enabled by default due to privacy consideration and privacy level
-      # restriction.
-
-      # top_domains: Requires Pi-hole privacy level 0 ("show everything"). \
-      #   Disabled at levels 1, 2, and 3.
-      # top_clients: Requires Pi-hole privacy level 0 or 1 \
-      #   ("hide domains"). Disabled at levels 2 and 3.
-      # upstreams: Requires Pi-hole privacy level 0, 1, or 2 \
-      #   ("hide domains and clients"). Disabled at level 3.
-
-      # If your Pi-hole privacy level is set higher, these plugins will not display data.
+      # version: Shows the version status of Pi-hole components
 
       # You can override which plugins are enabled by setting the 'plugins' variable.
 
@@ -313,6 +322,11 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # Example:
       #   ./pihole_munin_ admin install cache clients queries
+
+      # If 'all' is specified as a plugin, all available plugins will be enabled.
+
+      # Example:
+      #   ./pihole_munin_ admin install all
 
       # Or use the PLUGINS environment variable to govern the plugin list
       # when using the 'admin' command.
@@ -356,10 +370,10 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: --lower-limit 0
       #   status: --lower-limit -1 --upper-limit 1
       #   unique: --lower-limit 0
-
       #   top_clients: --lower-limit 0
       #   top_domains: --lower-limit 0
       #   upstreams: --lower-limit 0
+      #   version: --lower-limit -1 --upper-limit 1
 
       # The default graph arguments may be overridden by setting the
       # graph_args_<plugin> variable to the desired arguments.
@@ -408,11 +422,11 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: This graph shows Pi-hole's replies by record type
       #   status: This graph shows Pi-hole's blocking status
       #   unique: This graph shows the number of unique domains queried
-
       #   top_clients: This graph shows Pi-hole's top clients by query count
       #   top_domains: This graph shows Pi-hole's top domains by query count
       #   upstreams: This graph shows the query counts for each of Pi-hole's \
       #     upstream destinations
+      #   version: This graph shows the version status of Pi-hole components
 
       # The default graph information may be overidden by setting the
       # graph_info_<plugin> variable to the desired information.
@@ -449,10 +463,10 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies_by_type: Pi-hole replies by type
       #   status: Pi-hole status
       #   unique: Pi-hole unique domains
-
       #   top_clients: Pi-hole top clients
       #   top_domains: Pi-hole top domains
       #   upstreams: Pi-hole upstream DNS servers
+      #   version: Pi-hole version status
 
       # The default graph titles may be overridden by setting the
       # graph_title_<plugin> variable to the desired title.
@@ -508,6 +522,7 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   top_clients: queries / second
       #   top_domains: queries / second
       #   upstreams: queries / second
+      #   version: unknown / up-to-date / update available
 
       # The default graph vertical labels may be overridden by setting the
       # graph_vlabel_<plugin> variable to the desired label.
@@ -1389,6 +1404,7 @@ pihole_munin_state_handler() {
 dns_blocking_url="${dns_blocking_url:-/dns/blocking}"                # DNS blocking endpoint
 info_ftl_url="${info_ftl_url:-/info/ftl}"                            # FTL info endpoint
 info_metrics_url="${info_metrics_url:-/info/metrics}"                # Metrics endpoint
+info_version_url="${info_version_url:-/info/version}"                # Version endpoint
 stats_query_types_url="${stats_query_types_url:-/stats/query_types}" # Query types endpoint
 stats_summary_url="${stats_summary_url:-/stats/summary}"             # Summary endpoint
 stats_top_clients_url="${stats_top_clients_url:-/stats/top_clients}" # Top clients endpoint
@@ -1953,12 +1969,8 @@ pihole_munin_config_percent() {
 ###############################################################################
 
 pihole_munin_config_privacy() {
-    # Try to get current privacy level from API (fallback to env/config if not available)
-    privacy_level_val="${privacy_privacy_level:-}"
-    if [ -z "${privacy_level_val}" ]; then
-        ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" 2>/dev/null)
-        privacy_level_val=$(printf "%s" "${ftl_response}" | jq -r '.ftl.privacy_level // empty')
-    fi
+    ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" 2>/dev/null)
+    privacy_level_val=$(printf "%s" "${ftl_response}" | jq -r '.ftl.privacy_level // empty')
     # Set info string based on privacy level, with documentation link
     addn_info="See https://docs.pi-hole.net/ftldns/privacylevels/ for more information."
     case "${privacy_level_val}" in
@@ -2781,6 +2793,84 @@ pihole_munin_config_upstreams() {
 }
 
 ###############################################################################
+# Version Graph Configuration
+###############################################################################
+# Docker version monitoring is now disabled by default.
+# To enable, set: env.version_enable_docker yes
+###############################################################################
+
+pihole_munin_config_version() {
+    # Docker version monitoring toggle (default: no)
+    version_enable_docker="${version_enable_docker:-no}"
+    # Print Munin graph config lines, using plugin-specific overrides if set
+    printf "%s\n" \
+        "graph ${graph_version:-${graph}}" \
+        "graph_args ${graph_args_version:-"--lower-limit -1 --upper-limit 1"}" \
+        "graph_category ${graph_category_version:-${graph_category}}" \
+        "graph_height ${graph_height_version:-${graph_height}}" \
+        "graph_info ${graph_info_version:-"This graph shows the version status of Pi-hole components"}" \
+        "graph_scale ${graph_scale_version:-${graph_scale}}" \
+        "graph_title ${graph_title_version:-"Pi-hole version"}" \
+        "graph_vlabel ${graph_vlabel_version:-"unknown / up-to-date / update available"}" \
+        "graph_width ${graph_width_version:-${graph_width}}"
+    version_response=$(pihole_munin_state_handler "/info/version" 2>/dev/null)
+    for pihole_module in core web ftl docker; do
+        # Skip docker unless enabled
+        if [ "${pihole_module}" = "docker" ] && [ "${version_enable_docker}" != "yes" ]; then
+            continue
+        fi
+        label="version_${pihole_module}"
+        # Build info string from API data if available
+        info=""
+        if [ -n "${version_response}" ]; then
+            case "${pihole_module}" in
+                "core"|"web"|"ftl")
+                    local_ver=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.local.version // empty")
+                    remote_ver=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.remote.version // empty")
+                    branch=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.local.branch // empty")
+                    hash=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.local.hash // empty")
+                    remote_hash=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.remote.hash // empty")
+                    date=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.local.date // empty")
+                    info="Branch: ${branch}, Local: ${local_ver} (${hash})"
+                    [ -n "${date}" ] && info="${info}, Date: ${date}"
+                    info="${info}; Remote: ${remote_ver} (${remote_hash})"
+                    ;;
+                "docker")
+                    local_ver=$(printf '%s' "${version_response}" | jq -r ".version.docker.local // empty")
+                    remote_ver=$(printf '%s' "${version_response}" | jq -r ".version.docker.remote // empty")
+                    info="Local: ${local_ver}; Remote: ${remote_ver}"
+                    ;;
+            esac
+        fi
+        default_info="Pi-hole ${pihole_module} version status"
+        [ -n "${info}" ] && default_info="${default_info} (${info})"
+        pihole_munin_safe_eval version_colour "version_" "${pihole_module}" "_colour" ""
+        pihole_munin_safe_eval version_crit "version_" "${pihole_module}" "_crit" ""
+        pihole_munin_safe_eval version_draw "version_" "${pihole_module}" "_draw" "${graph_draw}"
+        pihole_munin_safe_eval version_graph "version_" "${pihole_module}" "_graph" "yes"
+        pihole_munin_safe_eval version_info "version_" "${pihole_module}" "_info" "${default_info}"
+        pihole_munin_safe_eval version_label "version_" "${pihole_module}" "_label" "${pihole_module}"
+        pihole_munin_safe_eval version_max "version_" "${pihole_module}" "_max" "1"
+        pihole_munin_safe_eval version_min "version_" "${pihole_module}" "_min" "-1"
+        pihole_munin_safe_eval version_type "version_" "${pihole_module}" "_type" "${graph_type}"
+        pihole_munin_safe_eval version_warn "version_" "${pihole_module}" "_warn" ""
+        # Print Munin field config for this version key
+        pihole_munin_print \
+            "${label}" \
+            "${version_colour:-}" \
+            "${version_crit:-}" \
+            "${version_draw:-}" \
+            "${version_graph:-}" \
+            "${version_info:-}" \
+            "${version_label:-}" \
+            "${version_max:-}" \
+            "${version_min:-}" \
+            "${version_type:-}" \
+            "${version_warn:-}"
+    done
+}
+
+###############################################################################
 # Dependency Check Function
 ###############################################################################
 # Usage:
@@ -2795,6 +2885,7 @@ pihole_munin_config_upstreams() {
 # Dependencies Checked:
 #   - awk
 #   - curl
+#   - dig
 #   - grep
 #   - jq
 #   - mktemp
@@ -2811,7 +2902,7 @@ pihole_munin_config_upstreams() {
 ###############################################################################
 
 pihole_munin_check_dependencies() {
-    plugin_dependencies="awk curl grep jq mktemp sed"  # List of required commands
+    plugin_dependencies="awk curl dig grep jq mktemp sed"  # List of required commands
     # Loop through each dependency and check if it's available
     for plugin_dependency in ${plugin_dependencies}; do
         if ! command -v "${plugin_dependency}" >/dev/null 2>&1; then
@@ -2849,6 +2940,7 @@ pihole_munin_config_handler() {
         "top_domains") pihole_munin_config_top_domains ;;
         "unique") pihole_munin_config_unique ;;
         "upstreams") pihole_munin_config_upstreams ;;
+        "version") pihole_munin_config_version ;;
         *)
             # Print error for unknown plugin ID and exit
             printf "%s\n" "  [❌] Unable to generate config for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
@@ -2862,8 +2954,10 @@ pihole_munin_config_handler() {
 ###############################################################################
 
 pihole_munin_fetch_cache() {
-    # Get cache metrics from API (cached if possible)
-    cache_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
+    if [ -z "${cache_response}" ]; then
+        # Get cache metrics from API
+        cache_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
+    fi
     # For each cache metric key
     for cache_key in "evicted" "expired" "immortal" "inserted"; do
         # Extract value from JSON, default to 0 if missing
@@ -2880,8 +2974,10 @@ pihole_munin_fetch_cache() {
 ###############################################################################
 
 pihole_munin_fetch_cache_by_type() {
-    # Get cache by type metrics from API
-    cache_by_type_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
+    if [ -z "${cache_by_type_response}" ]; then
+        # Get cache by type metrics from API
+        cache_by_type_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
+    fi
     # Iterate over each cache type entry in the JSON
     printf "%s" "${cache_by_type_response}" | jq -c '.metrics.dns.cache.content[]' \
     | while read -r cache_by_type_entry; do
@@ -2914,8 +3010,10 @@ pihole_munin_fetch_cache_by_type() {
 ###############################################################################
 
 pihole_munin_fetch_clients() {
-    # Get client metrics from API
-    clients_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    if [ -z "${clients_response}" ]; then
+        # Get client metrics from API
+        clients_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    fi
     # Iterate over each client key/value pair
     printf "%s" "${clients_response}" | jq -r '.clients | to_entries[] | "\(.key) \(.value)"' \
     | while read -r clients_key clients_value; do
@@ -2931,8 +3029,10 @@ pihole_munin_fetch_clients() {
 ###############################################################################
 
 pihole_munin_fetch_dnsmasq() {
-    # Get dnsmasq metrics from API
-    dnsmasq_response=$(pihole_munin_state_handler "${info_ftl_url}" ) || exit 1
+    if [ -z "${dnsmasq_response}" ]; then
+        # Get dnsmasq metrics from API
+        dnsmasq_response=$(pihole_munin_state_handler "${info_ftl_url}" ) || exit 1
+    fi
     # Iterate over each dnsmasq key/value pair
     printf "%s" "${dnsmasq_response}" | jq -r '.ftl.dnsmasq | to_entries[] | "\(.key) \(.value)"' \
     | while read -r dnsmasq_key dnsmasq_value; do
@@ -2948,8 +3048,10 @@ pihole_munin_fetch_dnsmasq() {
 ###############################################################################
 
 pihole_munin_fetch_domains() {
-    # Get domains metrics from API
-    domains_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    if [ -z "${domains_response}" ]; then
+        # Get domains metrics from API
+        domains_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    fi
     # Output domains_being_blocked value
     printf "%s" "${domains_response}" | jq -r '.gravity | "\("domains_being_blocked.value") \(.domains_being_blocked)"'
 }
@@ -2959,8 +3061,10 @@ pihole_munin_fetch_domains() {
 ###############################################################################
 
 pihole_munin_fetch_frequency() {
-    # Get frequency metrics from API
-    frequency_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    if [ -z "${frequency_response}" ]; then
+        # Get frequency metrics from API
+        frequency_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    fi
     # Output frequency value, rounded to two decimals
     printf "%s" "${frequency_response}" | jq -r '.queries | "frequency.value \(.frequency | tonumber | . * 100 | round | . / 100)"'
 }
@@ -2970,8 +3074,10 @@ pihole_munin_fetch_frequency() {
 ###############################################################################
 
 pihole_munin_fetch_gravity() {
-    # Get gravity database metrics from API
-    gravity_response=$(pihole_munin_state_handler "${info_ftl_url}") || exit 1
+    if [ -z "${gravity_response}" ]; then
+        # Get gravity database metrics from API
+        gravity_response=$(pihole_munin_state_handler "${info_ftl_url}") || exit 1
+    fi
     # For each gravity key to display
     for gravity_key in "groups" "lists" "domains_allowed" "domains_denied" "regex_allowed" "regex_denied"; do
         # Determine jq key path based on gravity_key prefix
@@ -3000,9 +3106,14 @@ pihole_munin_fetch_gravity() {
 ###############################################################################
 
 pihole_munin_fetch_overview() {
-    # Get queries by type and replies by type from API
+    if [ -z "${overview_queries_by_type_response}" ]; then
+    # Get queries by type from API
     overview_queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
+    fi
+    if [ -z "${overview_replies_by_type_response}" ]; then
+    # Get replies by type from API
     overview_replies_by_type_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    fi
     # Collect all unique record types from both queries and replies
     overview_all_types=$(
         { printf '%s\n' "${overview_queries_by_type_response}" | jq -r '.types | keys_unsorted[]'; \
@@ -3036,7 +3147,10 @@ pihole_munin_fetch_percent() {
 ###############################################################################
 
 pihole_munin_fetch_privacy() {
-    ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" ) || exit 1
+    if [ -z "${ftl_response}" ]; then
+        # Get FTL metrics from API
+        ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" ) || exit 1
+    fi
     # Output privacy_level value
     printf "%s" "${ftl_response}" | jq -r '"privacy_level.value \(.ftl.privacy_level)"'
 }
@@ -3046,7 +3160,10 @@ pihole_munin_fetch_privacy() {
 ###############################################################################
 
 pihole_munin_fetch_queries() {
-    queries_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    if [ -z "${queries_response}" ]; then
+        # Get queries metrics from API
+        queries_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    fi
     # For each queries key to display
     for queries_key in "blocked" "cached" "forwarded"; do
         queries_value=$(printf '%s' "${queries_response}" | jq -r --arg k "${queries_key}" '.queries[$k] // 0')
@@ -3062,7 +3179,10 @@ pihole_munin_fetch_queries() {
 ###############################################################################
 
 pihole_munin_fetch_queries_by_status() {
-    queries_by_status_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    if [ -z "${queries_by_status_response}" ]; then
+        # Get queries by status metrics from API
+        queries_by_status_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    fi
     # Iterate over each status key/value pair
     printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | to_entries[] | "\(.key) \(.value)"' \
     | while read -r queries_by_status_key queries_by_status_value; do
@@ -3078,7 +3198,10 @@ pihole_munin_fetch_queries_by_status() {
 ###############################################################################
 
 pihole_munin_fetch_queries_by_type() {
-    queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
+    if [ -z "${queries_by_type_response}" ]; then
+        # Get queries by type metrics from API
+        queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
+    fi
     # Iterate over each type key/value pair
     printf "%s" "${queries_by_type_response}" | jq -r '.types | to_entries[] | "\(.key) \(.value)"' \
     | while read -r queries_by_type_key queries_by_type_value; do
@@ -3094,7 +3217,10 @@ pihole_munin_fetch_queries_by_type() {
 ###############################################################################
 
 pihole_munin_fetch_replies() {
-    replies_response=$(pihole_munin_state_handler "${info_metrics_url}") || exit 1
+    if [ -z "${replies_response}" ]; then
+        # Get replies metrics from API
+        replies_response=$(pihole_munin_state_handler "${info_metrics_url}") || exit 1
+    fi
     # For each replies key to display
     for replies_key in "auth" "forwarded" "local" "optimized" "unanswered"; do
         replies_value=$(printf '%s\n' "${replies_response}" \
@@ -3111,7 +3237,9 @@ pihole_munin_fetch_replies() {
 ###############################################################################
 
 pihole_munin_fetch_replies_by_type() {
-    replies_by_type_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    if [ -z "${replies_by_type_response}" ]; then
+        replies_by_type_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    fi
     # Iterate over each type key/value pair
     printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | to_entries[] | "\(.key) \(.value)"' \
     | while read -r replies_by_type_key replies_by_type_value; do
@@ -3127,7 +3255,10 @@ pihole_munin_fetch_replies_by_type() {
 ###############################################################################
 
 pihole_munin_fetch_status() {
-    status_response=$(pihole_munin_state_handler "${dns_blocking_url}" ) || exit 1
+    if [ -z "${status_response}" ]; then
+        # Get blocking status from API
+        status_response=$(pihole_munin_state_handler "${dns_blocking_url}" ) || exit 1
+    fi
     # Output blocking status as numeric value for Munin
     printf "%s" "${status_response}" | jq -r '.blocking' \
     | while read -r status_key; do
@@ -3145,8 +3276,11 @@ pihole_munin_fetch_status() {
 ###############################################################################
 
 pihole_munin_fetch_top_clients() {
+    if [ -z "${top_clients_response}" ]; then
+        # Get top clients metrics from API
+        top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
+    fi
     top_clients_seentags="${pihole_munin_plugstate}/pihole_munin_top_clients_seentags.state"
-    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
     tmp_state=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "top_clients_state_tmp")
     # Extract current top clients and their counts
     printf "%s" "${top_clients_response}" | jq -r ".clients[:${top_clients_top_n:-${top_n}}][] | \"\(.name) \(.count)\"" | awk 'NF == 2' > "${tmp_state}.filtered"
@@ -3184,8 +3318,11 @@ pihole_munin_fetch_top_clients() {
 ###############################################################################
 
 pihole_munin_fetch_top_domains() {
+    if [ -z "${top_domains_response}" ]; then
+        # Get top domains metrics from API
+        top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
+    fi
     top_domains_seentags="${pihole_munin_plugstate}/pihole_munin_top_domains_seentags.state"
-    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
     tmp_state=$(pihole_munin_mktemp "${pihole_munin_plugstate}" "top_domains_state_tmp")
     # Extract current top domains and their counts
     printf "%s" "${top_domains_response}" | jq -r ".domains[:${top_domains_top_n:-${top_n}}][] | \"\(.domain) \(.count)\"" | awk 'NF == 2' > "${tmp_state}.filtered"
@@ -3223,7 +3360,10 @@ pihole_munin_fetch_top_domains() {
 ###############################################################################
 
 pihole_munin_fetch_unique() {
-    unique_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    if [ -z "${unique_response}" ]; then
+        # Get unique domains metrics from API
+        unique_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    fi
     # Output unique_domains value
     printf "%s" "${unique_response}" | jq -r '.queries | "unique_domains.value \(.unique_domains)"'
 }
@@ -3233,7 +3373,10 @@ pihole_munin_fetch_unique() {
 ###############################################################################
 
 pihole_munin_fetch_upstreams() {
-    upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
+    if [ -z "${upstreams_response}" ]; then
+        # Get upstreams metrics from API
+        upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
+    fi
     # Iterate over each upstream entry
     printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
         raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')  # Upstream name
@@ -3253,6 +3396,56 @@ pihole_munin_fetch_upstreams() {
         if pihole_munin_graph_zero "upstreams" || [ "${upstream_count}" -ne 0 ]; then
             printf "%s.value %s\n" "${upstreams_key}" "${upstream_count}"
         fi
+    done
+}
+
+###############################################################################
+# Fetch Version Metrics
+###############################################################################
+# Docker version monitoring is now disabled by default.
+# To enable, set: env.version_enable_docker yes
+###############################################################################
+
+pihole_munin_fetch_version() {
+    if [ -z "${version_response}" ]; then
+        # Get version metrics from API
+        version_response=$(pihole_munin_state_handler "${info_version_url}" 2>/dev/null)
+    fi
+    # Docker version monitoring toggle (default: no)
+    version_enable_docker="${version_enable_docker:-no}"
+    # For each Pi-hole module, determine status:
+    # -1 unknown, 0 up-to-date, 1 update available
+    for pihole_module in core web ftl docker; do
+        # Skip docker unless enabled
+        if [ "${pihole_module}" = "docker" ] && [ "${version_enable_docker}" != "yes" ]; then
+            continue
+        fi
+        status="-1"
+        case "${pihole_module}" in
+            "core"|"web"|"ftl")
+                local_ver=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.local.version // empty")
+                remote_ver=$(printf '%s' "${version_response}" | jq -r ".version.${pihole_module}.remote.version // empty")
+                if [ -n "${local_ver}" ] && [ -n "${remote_ver}" ]; then
+                    if [ "${local_ver}" = "${remote_ver}" ]; then
+                        status="0"
+                    else
+                        status="1"
+                    fi
+                fi
+                ;;
+            "docker")
+                local_ver=$(printf '%s' "${version_response}" | jq -r ".version.docker.local // empty")
+                remote_ver=$(printf '%s' "${version_response}" | jq -r ".version.docker.remote // empty")
+                if [ -n "${local_ver}" ] && [ -n "${remote_ver}" ]; then
+                    if [ "${local_ver}" = "${remote_ver}" ]; then
+                        status="0"
+                    else
+                        status="1"
+                    fi
+                fi
+                ;;
+        esac
+        printf "version_%s.value %s\n" "${pihole_module}" "${status}"
     done
 }
 
@@ -3282,6 +3475,7 @@ pihole_munin_fetch_handler() {
         "top_domains") pihole_munin_fetch_top_domains ;;
         "unique") pihole_munin_fetch_unique ;;
         "upstreams") pihole_munin_fetch_upstreams ;;
+        "version") pihole_munin_fetch_version ;;
         *)
             # Unknown plugin ID
             printf "%s\n" "  [❌] Unable to fetch data for unknown plugin ID '${pihole_munin_plugin_id}'." >&2
@@ -3334,8 +3528,11 @@ pihole_munin_normalise_plugins() {
 ###############################################################################
 # Plugin Lists
 ###############################################################################
-valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status top_clients top_domains unique upstreams"
-default_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status unique"
+
+# All valid plugins
+valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status top_clients top_domains unique upstreams version"
+# Default plugins list: anonymous plugins which aren't "boring"/mostly static
+default_plugins="cache cache_by_type clients frequency overview percent queries queries_by_status queries_by_type replies replies_by_type"
 
 # Normalise PLUGINS environment variable or use all valid plugins
 plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$default_plugins}")
@@ -3453,7 +3650,8 @@ pihole_munin_safe_path() {
 ###############################################################################
 # Parse install arguments
 ###############################################################################
-# Sets dry_run, plugins list, and custom path options
+# Sets dry_run, plugins list, and custom path options.
+# Supports 'all' shortcode to enable all valid plugins.
 ###############################################################################
 
 parse_install_args() {
@@ -3469,13 +3667,20 @@ parse_install_args() {
                 shift
                 custom_path="${1}"
                 ;;
-            *) plugins_arg="${plugins_arg} ${1}" ;; # Collect plugin names
+            *)
+                plugins_arg="${plugins_arg} ${1}" ;; # Collect plugin names
         esac
         shift
     done
-    # Trim whitespace
+    # Trim whitespace from plugin argument list
     plugins_arg=$(printf '%s' "${plugins_arg}" | sed 's/^ *//;s/ *$//')
+    # Expand 'all' shortcode to all valid plugins
+    # This allows users to specify 'all' to enable every plugin
+    if printf '%s' "${plugins_arg}" | grep -qw "all"; then
+        plugins_arg="${valid_plugins}"
+    fi
     # Validate plugins if specified, else use all valid plugins
+    # This filters out any unknown plugin names and warns if none are valid
     if [ -n "${plugins_arg}" ]; then
         plugins=$(pihole_munin_validate_input_plugins "${plugins_arg}")
         plugins=$(printf '%s' "${plugins}" | sed 's/^ *//;s/ *$//')
@@ -3487,6 +3692,7 @@ parse_install_args() {
         plugins=$(pihole_munin_valid_plugins)
     fi
     # If custom_path is set, override plugins_available and related paths
+    # This allows installation to a user-specified plugins directory
     if [ -n "${custom_path}" ]; then
         plugins_available="$(pihole_munin_safe_path "${custom_path}")"
         pihole_munin_path="${plugins_available}/pihole_munin_"
@@ -4143,24 +4349,77 @@ pihole_munin_configure() {
 }
 
 ###############################################################################
-# Check Versions
+# Version Comparison Logic Overview
 ###############################################################################
-# Compares two version strings (major.minor.patch)
-# Returns 0 if first version is newer or equal, 1 otherwise
+# This function compares two version strings (e.g. "1.2.3", "1.2.3-beta").
+#
+# Version comparison and progression rules:
+#   1. Major, minor, and patch numbers are compared numerically in order.
+#      - Higher major wins; if equal, compare minor; if equal, compare patch.
+#   2. If numeric parts are equal, pre-release tags (e.g. "-beta", "-rc") are
+#      checked:
+#      - A release (no tag) is always considered newer than any pre-release.
+#        Example: "1.2.3" > "1.2.3-beta"
+#      - If both have tags, they are compared lexically (alphabetically).
+#        Example: "1.2.3-rc" > "1.2.3-beta" (because "rc" > "beta")
+#   3. If both tags are identical, the versions are considered equal.
+#
+# Returns:
+#   0 if the first version is newer or equal to the second,
+#   1 if the first version is older.
+#
+# This logic ensures that stable releases are always preferred over
+# pre-releases, and provides a simple ordering for common tags.
 ###############################################################################
 
 pihole_munin_check() {
-    IFS=. read -r a b c <<EOF
+    # Helper: extract numeric part, default to 0 if missing
+    extract_num() { printf '%s' "$1" | grep -oE '^[0-9]+' || printf '0'; }
+    # Helper: extract pre-release tag (e.g. beta, rc), empty if none
+    extract_tag() { printf '%s' "$1" | grep -oE '[-][a-zA-Z0-9]+' | sed 's/^-//'; }
+    # Split version strings into components
+    IFS=. read -r a b c_extra <<EOF
 ${1:-0.0.0}
 EOF
-    IFS=. read -r x y z <<EOF
+    IFS=. read -r x y z_extra <<EOF
 ${2:-0.0.0}
 EOF
-    [ "${a:-0}" -gt "${x:-0}" ] && return 0
-    [ "${a:-0}" -lt "${x:-0}" ] && return 1
-    [ "${b:-0}" -gt "${y:-0}" ] && return 0
-    [ "${b:-0}" -lt "${y:-0}" ] && return 1
-    [ "${c:-0}" -gt "${z:-0}" ]
+    # Extract numeric patch and tag
+    c=$(printf '%s' "${c_extra}" | grep -oE '^[0-9]+')
+    z=$(printf '%s' "${z_extra}" | grep -oE '^[0-9]+')
+    a=$(extract_num "${a}")
+    b=$(extract_num "${b}")
+    c=$(extract_num "${c}")
+    x=$(extract_num "${x}")
+    y=$(extract_num "${y}")
+    z=$(extract_num "${z}")
+    tag_a=$(extract_tag "${c_extra}")
+    tag_x=$(extract_tag "${z_extra}")
+    # Compare major, minor, patch
+    [ "${a}" -gt "${x}" ] && return 0
+    [ "${a}" -lt "${x}" ] && return 1
+    [ "${b}" -gt "${y}" ] && return 0
+    [ "${b}" -lt "${y}" ] && return 1
+    [ "${c}" -gt "${z}" ] && return 0
+    [ "${c}" -lt "${z}" ] && return 1
+    # If numeric parts equal, compare tags
+    # No tag (release) is newer than any tag (pre-release)
+    if [ -z "${tag_a}" ] && [ -n "${tag_x}" ]; then
+        return 0  # release > pre-release
+    elif [ -n "${tag_a}" ] && [ -z "${tag_x}" ]; then
+        return 1  # pre-release < release
+    elif [ -n "${tag_a}" ] && [ -n "${tag_x}" ]; then
+        # Lexical compare tags (e.g. rc > beta)
+        first=$(printf '%s\n%s\n' "${tag_a}" "${tag_x}" | sort | head -n1)
+        if [ "${tag_a}" = "${tag_x}" ]; then
+            return 0
+        elif [ "${tag_a}" = "${first}" ]; then
+            return 1
+        else
+            return 0
+        fi
+    fi
+    return 0  # Equal
 }
 
 ###############################################################################
@@ -4551,21 +4810,23 @@ pihole_munin_help() {
                         "    ${script_path} ${1} ${2} user pihole"
                     ;;
                 "-i"|"install"|"--install")
-                    printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n" \
+                    printf "%s\n\n%s\n\n%s\n\n%s\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
                         "  [❓] ${script_path} ${1} ${2} [<plugin> …] [<option>]" \
                         "       Install pihole_munin_ and enable plugins." \
                         "  [ℹ️] This command will install pihole_munin_ and enable the specified plugins." \
-                        "       If no plugins are specified, all valid plugins will be enabled." \
+                        "       If no plugins are specified, the default plugins will be enabled." \
+                        "       If 'all' is specified as a plugin, all available plugins will be enabled." \
                         "  Options:" \
                         "    -D, dry, --dry-run     Show what would be done, without making any changes." \
                         "    -P, path, --plugins-path <dir> " \
                         "                           Specify a custom path for pihole_munin_" \
                         "                           (default: /usr/share/munin/plugins)" \
                         "  Examples:" \
+                        "    ${script_path} ${1} ${2} all" \
                         "    ${script_path} ${1} ${2} --dry-run" \
                         "    ${script_path} ${1} ${2} cache clients" \
                         "    ${script_path} ${1} ${2} cache clients --dry-run" \
-                        "    ${script_path} ${1} ${2} --plugins-path /usr/local/share/munin/plugins" \
+                        "    ${script_path} ${1} ${2} path /usr/local/share/munin/plugins" \
                         "    ${script_path} ${1} ${2} cache --plugins-path /opt/munin/plugins"
                     ;;
                 "-l"|"list"|"--list")
@@ -4607,7 +4868,7 @@ pihole_munin_help() {
                         "    ${script_path} ${1} ${2} --dry-run" \
                         "    ${script_path} ${1} ${2} cache clients" \
                         "    ${script_path} ${1} ${2} cache clients --dry-run" \
-                        "    ${script_path} ${1} ${2} --plugins-path /usr/local/share/munin/plugins" \
+                        "    ${script_path} ${1} ${2} path /usr/local/share/munin/plugins" \
                         "    ${script_path} ${1} ${2} cache --plugins-path /opt/munin/plugins"
                     ;;
                 "-U"|"update"|"--update")
@@ -4663,8 +4924,10 @@ pihole_munin_help() {
                 "       https://guide.munin-monitoring.org/en/master/reference/plugin.html" \
             ;;
         "fetch")
-            printf "%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n" \
+            printf "%s\n\n%s\n%s\n\n%s\n%s\n%s\n\n%s\n\n%s\n" \
                 "  [❓] ${script_path} ${1}" \
+                "       Synonymous with \"\" (no arguments), this is the normal invocation" \
+                "       of the plugin." \
                 "       When the node receives a fetch command for a plugin, the plugin is" \
                 "       invoked without any arguments on the command line and is expected to" \
                 "       emit one or more 'field.value' attribute values." \

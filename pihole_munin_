@@ -41,7 +41,7 @@ set -e
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
-pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.9.0}"
+pihole_munin_version="${PIHOLE_MUNIN_VERSION:-6.9.1}"
 
 # Munin documentation
 : <<=cut
@@ -72,25 +72,27 @@ This is a wildcard plugin.
 
 =head2 PLUGINS
 
-  cache: Shows Pi-hole's cache
-  cache_by_type: Shows Pi-hole's cached records by type
-  clients: Shows active and total Pi-hole clients
+Plugins with an asterisk (*) are enabled by default.
+
+  cache*: Shows Pi-hole's cache
+  cache_by_type*: Shows Pi-hole's cached records by type
+  clients*: Shows active and total Pi-hole clients
   dnsmasq: Shows various Pi-hole FTLDNS dnsmasq statistics
   domains: Shows the number of domains being blocked by Pi-hole
-  frequency: Shows Pi-hole's query frequency
+  frequency*: Shows Pi-hole's query frequency
   gravity: Shows various Pi-hole gravity database statistics
-  overview: Shows an overview of Pi-hole's DNS traffic
-  percent: Shows Pi-hole's blocked query percentage
+  overview*: Shows an overview of Pi-hole's DNS traffic
+  percent*: Shows Pi-hole's blocked query percentage
   privacy: Shows Pi-hole's privacy level
-  queries: Shows Pi-hole's queries
-  queries_by_status: Shows Pi-hole's queries by status
-  queries_by_type: Shows Pi-hole's queries by record type
-  replies: Shows Pi-hole's replies
-  replies_by_type: Shows Pi-hole's replies by record type
+  queries*: Shows Pi-hole's queries
+  queries_by_status*: Shows Pi-hole's queries by status
+  queries_by_type*: Shows Pi-hole's queries by record type
+  replies*: Shows Pi-hole's replies
+  replies_by_type*: Shows Pi-hole's replies by record type
   status: Shows Pi-hole's blocking status
-  unique: Shows the number of unique domains queried by Pi-hole
   top_clients: Shows Pi-hole's top clients by query count
   top_domains: Shows Pi-hole's top domains by query count
+  unique*: Shows the number of unique domains queried by Pi-hole
   upstreams: Shows the query counts for each of Pi-hole's upstream destinations
   version: Shows the version status of Pi-hole components
 
@@ -139,58 +141,72 @@ E.g.
   sudo mv pihole_munin_ /usr/share/munin/plugins/pihole_munin_
   sudo chmod +x /usr/share/munin/plugins/pihole_munin_
 
-then,
+then to install the default plugins,
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_cache
+    /etc/munin/plugins/pihole_munin_cache
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_cache_by_type
+    /etc/munin/plugins/pihole_munin_cache_by_type
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_clients
+    /etc/munin/plugins/pihole_munin_clients
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_dnsmasq
+    /etc/munin/plugins/pihole_munin_frequency
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_domains
+    /etc/munin/plugins/pihole_munin_overview
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_frequency
+    /etc/munin/plugins/pihole_munin_percent
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_gravity
+    /etc/munin/plugins/pihole_munin_queries
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_overview
+    /etc/munin/plugins/pihole_munin_queries_by_status
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_percent
+    /etc/munin/plugins/pihole_munin_queries_by_type
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_privacy
+    /etc/munin/plugins/pihole_munin_replies
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_queries
+    /etc/munin/plugins/pihole_munin_replies_by_type
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_queries_by_status
+    /etc/munin/plugins/pihole_munin_unique
+
+additiionally, you can install any of the other plugins if desired, e.g.
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_queries_by_type
+    /etc/munin/plugins/pihole_munin_dnsmasq
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_replies
+    /etc/munin/plugins/pihole_munin_domains
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_replies_by_type
+    /etc/munin/plugins/pihole_munin_gravity
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_status
+    /etc/munin/plugins/pihole_munin_privacy
 
   sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
-  /etc/munin/plugins/pihole_munin_unique
+    /etc/munin/plugins/pihole_munin_status
+
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+    /etc/munin/plugins/pihole_munin_top_clients
+
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+    /etc/munin/plugins/pihole_munin_top_domains
+
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+    /etc/munin/plugins/pihole_munin_upstreams
+
+  sudo ln -s /usr/share/munin/plugins/pihole_munin_ \
+    /etc/munin/plugins/pihole_munin_version
 
 and then,
 
@@ -299,9 +315,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       # replies*: Shows Pi-hole's replies
       # replies_by_type*: Shows Pi-hole's replies by record type
       # status: Shows Pi-hole's blocking status
-      # unique: Shows the number of unique domains queried by Pi-hole
       # top_clients: Shows Pi-hole's top clients by query count
       # top_domains: Shows Pi-hole's top domains by query count
+      # unique*: Shows the number of unique domains queried by Pi-hole
       # upstreams: Shows the query counts for each of Pi-hole's upstream destinations
       # version: Shows the version status of Pi-hole components
 
@@ -369,9 +385,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies: --lower-limit 0
       #   replies_by_type: --lower-limit 0
       #   status: --lower-limit -1 --upper-limit 1
-      #   unique: --lower-limit 0
       #   top_clients: --lower-limit 0
       #   top_domains: --lower-limit 0
+      #   unique: --lower-limit 0
       #   upstreams: --lower-limit 0
       #   version: --lower-limit -1 --upper-limit 1
 
@@ -421,11 +437,11 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies: This graph shows Pi-hole's replies
       #   replies_by_type: This graph shows Pi-hole's replies by record type
       #   status: This graph shows Pi-hole's blocking status
-      #   unique: This graph shows the number of unique domains queried
       #   top_clients: This graph shows Pi-hole's top clients by query count
       #   top_domains: This graph shows Pi-hole's top domains by query count
       #   upstreams: This graph shows the query counts for each of Pi-hole's \
       #     upstream destinations
+      #   unique: This graph shows the number of unique domains queried
       #   version: This graph shows the version status of Pi-hole components
 
       # The default graph information may be overidden by setting the
@@ -462,9 +478,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies: Pi-hole replies
       #   replies_by_type: Pi-hole replies by type
       #   status: Pi-hole status
-      #   unique: Pi-hole unique domains
       #   top_clients: Pi-hole top clients
       #   top_domains: Pi-hole top domains
+      #   unique: Pi-hole unique domains
       #   upstreams: Pi-hole upstream DNS servers
       #   version: Pi-hole version status
 
@@ -517,10 +533,9 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #   replies: replies / second
       #   replies_by_type: replies / second
       #   status: unknown / disabled / enabled
-      #   unique: unique domains
-
       #   top_clients: queries / second
       #   top_domains: queries / second
+      #   unique: domains / second
       #   upstreams: queries / second
       #   version: unknown / up-to-date / update available
 
@@ -2675,8 +2690,24 @@ pihole_munin_config_unique() {
         "graph_info ${graph_info_unique:-"This graph shows the number of unique domains queried by Pi-hole"}" \
         "graph_scale ${graph_scale_unique:-${graph_scale}}" \
         "graph_title ${graph_title_unique:-"Pi-hole unique domains"}" \
-        "graph_vlabel ${graph_vlabel_unique:-"unique domains"}" \
+        "graph_vlabel ${graph_vlabel_unique:-"domains / second"}" \
         "graph_width ${graph_width_unique:-${graph_width}}"
+    # Fetch unique domains value for info string if needed
+    unique_response=$(pihole_munin_state_handler "${stats_summary_url}" 2>/dev/null)
+    unique_domains_val=$(printf "%s" "${unique_response}" | jq -r '.queries.unique_domains // empty')
+    # Conditionally append value to info for DERIVE type
+    pihole_munin_safe_eval unique_type "unique_" "unique_domains" "_type" "DERIVE"
+    if [ "${unique_type:-DERIVE}" = "DERIVE" ]; then
+        if [ "${unique_domains_val}" = "1" ]; then
+            unique_info="Pi-hole unique domains (1 domain)"
+        elif [ -n "${unique_domains_val}" ]; then
+            unique_info="Pi-hole unique domains (${unique_domains_val} domains)"
+        else
+            unique_info="Pi-hole unique domains"
+        fi
+    else
+        pihole_munin_safe_eval unique_info "unique_" "unique_domains" "_info" "Pi-hole unique domains"
+    fi
     # Print Munin field config for unique domains (single value)
     pihole_munin_print \
         "unique_domains" \
@@ -2684,11 +2715,11 @@ pihole_munin_config_unique() {
         "${unique_unique_domains_crit:-}" \
         "${unique_unique_domains_draw:-${graph_draw}}" \
         "${unique_unique_domains_graph:-"yes"}" \
-        "${unique_unique_domains_info:-"Pi-hole unique domains"}" \
+        "${unique_info:-}" \
         "${unique_unique_domains_label:-"unique domains"}" \
         "${unique_unique_domains_max:-}" \
         "${unique_unique_domains_min:-"0"}" \
-        "${unique_unique_domains_type:-"${graph_type}"}" \
+        "${unique_type:-}" \
         "${unique_unique_domains_warn:-}"
 }
 
@@ -3531,8 +3562,9 @@ pihole_munin_normalise_plugins() {
 
 # All valid plugins
 valid_plugins="cache cache_by_type clients dnsmasq domains frequency gravity overview percent privacy queries queries_by_status queries_by_type replies replies_by_type status top_clients top_domains unique upstreams version"
+
 # Default plugins list: anonymous plugins which aren't "boring"/mostly static
-default_plugins="cache cache_by_type clients frequency overview percent queries queries_by_status queries_by_type replies replies_by_type"
+default_plugins="cache cache_by_type clients frequency overview percent queries queries_by_status queries_by_type replies replies_by_type unique"
 
 # Normalise PLUGINS environment variable or use all valid plugins
 plugins=$(pihole_munin_normalise_plugins "${PLUGINS:-$default_plugins}")

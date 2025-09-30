@@ -42,7 +42,7 @@ set -e
 # Version string components
 major_version="6"
 minor_version="10"
-micro_version="0"
+micro_version="1"
 version_tag=""
 
 # Set local version
@@ -1702,7 +1702,7 @@ pihole_munin_config_clients() {
         "graph_vlabel ${graph_vlabel_clients:-"clients"}" \
         "graph_width ${graph_width_clients:-${graph_width}}"
     # Fetch client metrics from API
-    clients_response=$(pihole_munin_state_handler "${stats_summary_url}?count=${top_clients_n}" ) || exit 1
+    clients_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
     # Iterate over each client key/value pair
     printf "%s" "${clients_response}" | jq -r '.clients | to_entries[] | "\(.key) \(.value)"' \
     | while read -r clients_key clients_value; do
@@ -1761,7 +1761,7 @@ pihole_munin_config_dnsmasq() {
         "graph_vlabel ${graph_vlabel_dnsmasq:-"count"}" \
         "graph_width ${graph_width_dnsmasq:-${graph_width}}"
     # Fetch dnsmasq metrics from API
-    dnsmasq_response=$(pihole_munin_state_handler "${info_ftl_url}?count=${top_domains_n}") || exit 1
+    dnsmasq_response=$(pihole_munin_state_handler "${info_ftl_url}") || exit 1
     # Iterate over each dnsmasq key/value pair
     printf "%s" "${dnsmasq_response}" | jq -r '.ftl.dnsmasq | to_entries[] | "\(.key) \(.value)"' \
     | while read -r dnsmasq_key dnsmasq_value; do
@@ -2582,7 +2582,7 @@ pihole_munin_config_top_clients() {
         top_clients_vlabel="queries"
     fi
     [ "${graph_total_top_clients:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_top_clients:-total}"
-    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
+    top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}?count=${top_clients_n}") || exit 1
     # Output Munin graph config header
     printf "%s\n" \
         "graph ${graph_top_clients:-${graph}}" \
@@ -2667,7 +2667,7 @@ pihole_munin_config_top_domains() {
         top_domains_vlabel="queries"
     fi
     [ "${graph_total_top_domains:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_top_domains:-total}"
-    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
+    top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}?count=${top_domains_n}") || exit 1
     # Output Munin graph config header
     printf "%s\n" \
         "graph ${graph_top_domains:-${graph}}" \
@@ -3390,7 +3390,7 @@ pihole_munin_fetch_status() {
 pihole_munin_fetch_top_clients() {
     if [ -z "${top_clients_response}" ]; then
         # Get top clients metrics from API
-        top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}") || exit 1
+        top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}?count=${top_clients_n}") || exit 1
     fi
     # Output values for Munin, only current top N from API
     printf "%s" "${top_clients_response}" | jq -r ".clients[] | \"\(.name) \(.count)\"" | awk 'NF == 2' |
@@ -3414,7 +3414,7 @@ pihole_munin_fetch_top_clients() {
 pihole_munin_fetch_top_domains() {
     if [ -z "${top_domains_response}" ]; then
         # Get top domains metrics from API
-        top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}") || exit 1
+        top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}?count=${top_domains_n}") || exit 1
     fi
     # Output values for Munin, only current top N from API
     printf "%s" "${top_domains_response}" | jq -r ".domains[] | \"\(.domain) \(.count)\"" | awk 'NF == 2' |

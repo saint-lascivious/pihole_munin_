@@ -41,9 +41,9 @@ set -e
 
 # Version string components
 major_version="6"
-minor_version="10"
-micro_version="1"
-version_tag=""
+minor_version="11"
+micro_version="0"
+version_tag="-beta1"
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
@@ -721,24 +721,24 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
       #### FIELDNAME.TYPE ####
 
       # Attribute: {fieldname}.type
-      # Value: GAUGE|COUNTER|DERIVE|ABSOLUTE
+      # Value: DERIVE|GAUGE|COUNTER|ABSOLUTE
       # Type: optional
       # Description: Sets the RRD Data Source Type for this field.
       #   The values must be written in capitals. The type used may
       #   introduce restrictions for {fieldname.value}.
-      # Default: GAUGE or DERIVE, depending on the plugin.
+      # Default: DERIVE or GAUGE, depending on the plugin.
 
-      # The default type is GAUGE for most plugins, but DERIVE for plugins
-      # that deal with counters, such as replies, queries, etc.
+      # The default type is DERIVE for most plugins, and GAUGE for
+      # the remainder.
 
       # The type of the field determines how the data is interpreted
       # by Munin's graphing engine. The type may be one of the following:
-      #   GAUGE: A value that can go up and down, e.g. temperature, disk
-      #   usage, etc.
-      #   COUNTER: A value that only goes up, e.g. number of requests, bytes
-      #   sent, etc.
       #   DERIVE: A value that can go up and down, but is derived from a
-      #   counter, e.g. network traffic, etc.
+      #     counter, e.g. network traffic, etc.
+      #   GAUGE: A value that can go up and down, e.g. temperature, disk
+      #     usage, etc.
+      #   COUNTER: A value that only goes up, e.g. number of requests, bytes
+      #     sent, etc.
       #   ABSOLUTE: A value that is an absolute number, e.g. number of users.
 
       # The format for the variables is:
@@ -1009,7 +1009,7 @@ trap pihole_munin_abort_handler INT TERM
 #   $7  label_val   - Label (legend, required, max 19 chars, no '#' or '\')
 #   $8  max_val     - Maximum value (number, optional)
 #   $9  min_val     - Minimum value (number, optional)
-#   $10 type_val    - Data type (GAUGE, COUNTER, DERIVE, ABSOLUTE, optional)
+#   $10 type_val    - Data type (DERIVE, GAUGE, COUNTER ABSOLUTE, optional)
 #   $11 warn_val    - Warning threshold (number or range, optional)
 #
 # Validation:
@@ -1019,7 +1019,7 @@ trap pihole_munin_abort_handler INT TERM
 #   - crit_val and warn_val accept single value or colon-separated range
 #   - draw_val must match Munin draw styles
 #   - graph_val must be "yes" or "no"
-#   - type_val must be one of GAUGE, COUNTER, DERIVE, ABSOLUTE
+#   - type_val must be one of DERIVE, GAUGE, COUNTER, ABSOLUTE
 #   - max_val and min_val must be numeric
 #
 # Output:
@@ -1116,7 +1116,7 @@ pihole_munin_print() {
     fi
     if [ -n "${type_val}" ] && [ -n "$(printf '%s' "${type_val}" | tr -d '[:space:]')" ]; then
         case "${type_val}" in
-            "GAUGE"|"COUNTER"|"DERIVE"|"ABSOLUTE")
+            "DERIVE"|"GAUGE"|"COUNTER"|"ABSOLUTE")
                 printf "%s.type %s\n" "${key_val}" "${type_val}"
                 ;;
         esac
@@ -1461,7 +1461,7 @@ graph_category="${graph_category:-"dns"}"       # Graph category
 graph_draw="${graph_draw:-"LINE1"}"             # Graph draw style
 graph_height="${graph_height:-"200"}"           # Graph height
 graph_scale="${graph_scale:-"no"}"              # Graph scale
-graph_type="${graph_type:-"GAUGE"}"             # Graph type
+graph_type="${graph_type:-"DERIVE"}"            # Graph type
 graph_width="${graph_width:-"400"}"             # Graph width
 
 ###############################################################################
@@ -1506,7 +1506,7 @@ pihole_munin_graph_zero() {
 
 pihole_munin_config_cache() {
     # Default cache graph type and vlabel based on type
-    graph_type_cache="${graph_type_cache:-"DERIVE"}"
+    graph_type_cache="${graph_type_cache:-"${graph_type}"}"
     if [ "${graph_type_cache}" = "DERIVE" ]; then
         cache_vlabel="resource records / second"
     else
@@ -1518,7 +1518,7 @@ pihole_munin_config_cache() {
         "graph_args ${graph_args_cache:-${graph_args}}" \
         "graph_category ${graph_category_cache:-${graph_category}}" \
         "graph_height ${graph_height_cache:-${graph_height}}" \
-        "graph_info ${graph_info_cache:-"This graph shows Pi-hole's cache, visit https://docs.pi-hole.net/ftldns/dns-cache/ for more information"}" \
+        "graph_info ${graph_info_cache:-"pihole-FTL offers an efficient DNS cache that helps speed up your Internet experience. This DNS cache is part of the embedded dnsmasq server. Setting the cache size to zero (dns.cache.size = 0) disables caching. The DNS TTL value is used for determining the caching period. pihole-FTL clears its cache on receiving SIGHUP. The cache is not persistent across restarts. Visit <a href=\"https://docs.pi-hole.net/ftldns/dns-cache/\">https://docs.pi-hole.net/ftldns/dns-cache/</a> for more information"}" \
         "graph_scale ${graph_scale_cache:-${graph_scale}}" \
         "graph_title ${graph_title_cache:-"Pi-hole cache"}" \
         "graph_vlabel ${graph_vlabel_cache:-${cache_vlabel}}" \
@@ -1536,16 +1536,57 @@ pihole_munin_config_cache() {
             pihole_munin_safe_eval cache_crit "cache_" "${cache_key}" "_crit" ""
             pihole_munin_safe_eval cache_draw "cache_" "${cache_key}" "_draw" "${graph_draw}"
             pihole_munin_safe_eval cache_graph "cache_" "${cache_key}" "_graph" "yes"
-            # Conditionally append value to info for DERIVE type
             pihole_munin_safe_eval cache_type "cache_" "${cache_key}" "_type" "${graph_type_cache}"
+            # Build link/info/documentation for each key
+            case "${cache_key}" in
+                "evicted")
+                    cache_doc_info="DNS cache evictions"
+                    cache_doc_text="The number of cache entries that had to be \
+                    removed although the corresponding entries were not expired. \
+                    Old cache entries get removed if the cache is full to make \
+                    space for more recent domains. The cache size should be \
+                    increased when this number is larger than zero. Optimizing \
+                    your cache settings is crucial for maintaining optimal \
+                    performance and resource utilization. It is advisable to \
+                    regularly check for evictions to ensure your DNS cache \
+                    operates effectively. This information may also be queried \
+                    using dig +short chaos txt evictions.bind"
+                    ;;
+                "expired")
+                    cache_doc_info="Expired cache entries"
+                    cache_doc_text="The number of cache entries that have expired. \
+                    These queries may be served from the cache if the query cache \
+                    optimizer is enabled and the cache entry is not too old when \
+                    the query is made. The number of expired entries is part of \
+                    the active cache records if the query optimizer is enabled."
+                    ;;
+                "immortal")
+                    cache_doc_info="Immortal cache entries"
+                    cache_doc_text="The number of cache entries that have been \
+                    marked as immortal. These entries will never expire. As \
+                    such, they are part of the active cache entries. Examples \
+                    of immortal cache entries are those coming from the local \
+                    hosts file (e.g., /etc/hosts) and local DNS records."
+                    ;;
+                "inserted")
+                    cache_doc_info="Total cache insertions"
+                    cache_doc_text="Number of total insertions into the cache. \
+                    This number can be substantially larger than DNS cache size \
+                    as expiring cache entries naturally make room for new \
+                    insertions over time. Each lookup with a non-zero TTL will \
+                    be cached. This information may also be queried using dig \
+                    +short chaos txt insertions.bind"
+                    ;;
+            esac
+            # Compose info string
             if [ "${graph_type_cache:-${cache_type}}" = "DERIVE" ]; then
                 if [ "${cache_value}" -eq 1 ]; then
-                    cache_info="Pi-hole cache ${cache_key} (${cache_value} record)"
+                    cache_info="${cache_doc_info} (${cache_value} record) ${cache_doc_text}"
                 else
-                    cache_info="Pi-hole cache ${cache_key} (${cache_value} records)"
+                    cache_info="${cache_doc_info} (${cache_value} records) ${cache_doc_text}"
                 fi
             else
-                pihole_munin_safe_eval cache_info "cache_" "${cache_key}" "_info" "Pi-hole cache ${cache_key}"
+                pihole_munin_safe_eval cache_info "cache_" "${cache_key}" "_info" "${cache_doc_info} ${cache_doc_text}"
             fi
             pihole_munin_safe_eval cache_label "cache_" "${cache_key}" "_label" "${cache_key}"
             pihole_munin_safe_eval cache_max "cache_" "${cache_key}" "_max" ""
@@ -1574,7 +1615,7 @@ pihole_munin_config_cache() {
 
 pihole_munin_config_cache_by_type() {
     # Default cache by type graph type and vlabel based on type
-    graph_type_cache_by_type="${graph_type_cache_by_type:-"DERIVE"}"
+    graph_type_cache_by_type="${graph_type_cache_by_type:-"${graph_type}"}"
     if [ "${graph_type_cache_by_type}" = "DERIVE" ]; then
         cache_by_type_vlabel="resource records / second"
     else
@@ -1721,7 +1762,7 @@ pihole_munin_config_clients() {
                         "${clients_active_label:-"${clients_key}"}" \
                         "${clients_active_max:-""}" \
                         "${clients_active_min:-"0"}" \
-                        "${clients_active_type:-"${graph_type}"}" \
+                        "${clients_active_type:-"GAUGE"}" \
                         "${clients_active_warn:-}"
                     ;;
                 "total")
@@ -1736,7 +1777,7 @@ pihole_munin_config_clients() {
                         "${clients_total_label:-"${clients_key}"}" \
                         "${clients_total_max:-""}" \
                         "${clients_total_min:-"0"}" \
-                        "${clients_total_type:-"${graph_type}"}" \
+                        "${clients_total_type:-"GAUGE"}" \
                         "${clients_total_warn:-}"
                     ;;
             esac
@@ -1823,7 +1864,7 @@ pihole_munin_config_domains() {
         "${domains_domains_being_blocked_label:-"domains being blocked"}" \
         "${domains_domains_being_blocked_max:-""}" \
         "${domains_domains_being_blocked_min:-"0"}" \
-        "${domains_domains_being_blocked_type:-"${graph_type}"}" \
+        "${domains_domains_being_blocked_type:-"GAUGE"}" \
         "${domains_domains_being_blocked_warn:-}"
 }
 
@@ -1904,7 +1945,7 @@ pihole_munin_config_gravity() {
             pihole_munin_safe_eval gravity_label "gravity_" "${gravity_key}" "_label" "${default_label}"
             pihole_munin_safe_eval gravity_max "gravity_" "${gravity_key}" "_max" ""
             pihole_munin_safe_eval gravity_min "gravity_" "${gravity_key}" "_min" "0"
-            pihole_munin_safe_eval gravity_type "gravity_" "${gravity_key}" "_type" "${graph_type}"
+            pihole_munin_safe_eval gravity_type "gravity_" "${gravity_key}" "_type" "GAUGE"
             pihole_munin_safe_eval gravity_warn "gravity_" "${gravity_key}" "_warn" ""
             # Print Munin field config for this gravity key
             pihole_munin_print \
@@ -1929,7 +1970,7 @@ pihole_munin_config_gravity() {
 
 pihole_munin_config_overview() {
     # Default overview graph type and vlabel based on type
-    graph_type_overview="${graph_type_overview:-"DERIVE"}"
+    graph_type_overview="${graph_type_overview:-"${graph_type}"}"
     if [ "${graph_type_overview}" = "DERIVE" ]; then
         overview_vlabel="queries in (-) | replies out (+) / second"
     else
@@ -2030,7 +2071,7 @@ pihole_munin_config_percent() {
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_percent:-${graph}}" \
-        "graph_args ${graph_args_percent:-"--upper-limit 100 --lower-limit 0"}" \
+        "graph_args ${graph_args_percent:-"--lower-limit 0 --slope-mode --upper-limit 100"}" \
         "graph_category ${graph_category_percent:-${graph_category}}" \
         "graph_height ${graph_height_percent:-${graph_height}}" \
         "graph_info ${graph_info_percent:-"This graph shows Pi-hole's blocked query percentage"}" \
@@ -2049,7 +2090,7 @@ pihole_munin_config_percent() {
         "${percent_percent_blocked_label:-"percent blocked"}" \
         "${percent_percent_blocked_max:-"100"}" \
         "${percent_percent_blocked_min:-"0"}" \
-        "${percent_percent_blocked_type:-"${graph_type}"}" \
+        "${percent_percent_blocked_type:-"GAUGE"}" \
         "${percent_percent_blocked_warn:-"0:85"}"
 }
 
@@ -2061,31 +2102,39 @@ pihole_munin_config_privacy() {
     ftl_response=$(pihole_munin_state_handler "${info_ftl_url}" 2>/dev/null)
     privacy_level_val=$(printf "%s" "${ftl_response}" | jq -r '.ftl.privacy_level // empty')
     # Set info string based on privacy level, with documentation link
-    addn_info="See https://docs.pi-hole.net/ftldns/privacylevels/ for more information."
     case "${privacy_level_val}" in
         0)
-            privacy_info="Level 0 - show everything: Doesn't hide anything, all statistics are available."
+            privacy_doc_info="Level 0 - show everything"
+            privacy_doc_text="Doesn't hide anything, all statistics are available."
             ;;
         1)
-            privacy_info="Level 1 - hide domains: Show and store all domains as hidden. Disables: Top Domains, Top Ads."
+            privacy_doc_info="Level 1 - hide domains"
+            privacy_doc_text="Show and store all domains as hidden. This setting disables Top Domains, Top Ads."
             ;;
         2)
-            privacy_info="Level 2 - hide domains and clients: Show and store all domains as hidden and clients as 0.0.0.0. Disables: Top Domains, Top Ads, Top Clients, Clients over time."
+            privacy_doc_info="Level 2 - hide domains and clients"
+            privacy_doc_text="Show and store all domains as hidden and clients as 0.0.0.0 This setting disables Top Domains, Top Ads, Top Clients, Clients over time."
             ;;
         3)
-            privacy_info="Level 3 - anonymous mode: Disable all details except the most anonymous statistics. Disables: Top Domains, Top Ads, Top Clients, Clients over time, Query Log, Long-term database logging."
+            privacy_doc_info="Level 3 - anonymous mode (anonymize everything)"
+            privacy_doc_text="Anonymize everything. This setting disables Top Domains, Top Ads, Top Clients, Clients over time, Query Log, Long-term database logging."
             ;;
         *)
-            privacy_info="Privacy level unknown."
+            privacy_doc_info="Privacy level unknown."
             ;;
     esac
+    if [ -n "${privacy_doc_info}" ] && [ -n "${privacy_doc_text}" ]; then
+        privacy_info="${privacy_doc_info} ${privacy_doc_text}"
+    else
+        privacy_info="${privacy_doc_info}"
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_privacy:-${graph}}" \
         "graph_args ${graph_args_privacy:-"--upper-limit 3 --lower-limit 0"}" \
         "graph_category ${graph_category_privacy:-${graph_category}}" \
         "graph_height ${graph_height_privacy:-${graph_height}}" \
-        "graph_info ${graph_info_privacy:-"This graph shows Pi-hole's privacy level"}" \
+        "graph_info ${graph_info_privacy:-"Using privacy levels you can specify which level of detail you want to see in your Pi-hole statistics. The privacy level may be changed at any time without having to restart the DNS resolver. Note that queries with (partially) hidden details cannot be disclosed with a subsequent reduction of the privacy level. They can be changed either from the Settings page on the dashboard or in FTL's config file. Visit <a href=\"https://docs.pi-hole.net/ftldns/privacylevels/\">https://docs.pi-hole.net/ftldns/privacylevels/</a> for more information"}" \
         "graph_scale ${graph_scale_privacy:-${graph_scale}}" \
         "graph_title ${graph_title_privacy:-"Pi-hole privacy level"}" \
         "graph_vlabel ${graph_vlabel_privacy:-"show all / 1 / 2 / anonymous"}" \
@@ -2099,11 +2148,11 @@ pihole_munin_config_privacy() {
         "${privacy_privacy_level_crit:-}" \
         "${privacy_privacy_level_draw:-${graph_draw}}" \
         "${privacy_privacy_level_graph:-"yes"}" \
-        "${privacy_privacy_level_info:-"${privacy_info}  ${addn_info}"}" \
+        "${privacy_privacy_level_info:-"${privacy_info}"}" \
         "${privacy_privacy_level_label:-"privacy level"}" \
         "${privacy_privacy_level_max:-"3"}" \
         "${privacy_privacy_level_min:-"0"}" \
-        "${privacy_privacy_level_type:-"${graph_type}"}" \
+        "${privacy_privacy_level_type:-"GAUGE"}" \
         "${privacy_privacy_level_warn:-}"
 }
 
@@ -2113,7 +2162,7 @@ pihole_munin_config_privacy() {
 
 pihole_munin_config_queries() {
     # Default queries graph type and vlabel based on type
-    graph_type_queries="${graph_type_queries:-"DERIVE"}"
+    graph_type_queries="${graph_type_queries:-"${graph_type}"}"
     if [ "${graph_type_queries}" = "DERIVE" ]; then
         queries_vlabel="queries / second"
     else
@@ -2190,7 +2239,7 @@ pihole_munin_config_queries() {
 
 pihole_munin_config_queries_by_status() {
     # Default queries by status graph type and vlabel based on type
-    graph_type_queries_by_status="${graph_type_queries_by_status:-"DERIVE"}"
+    graph_type_queries_by_status="${graph_type_queries_by_status:-"${graph_type}"}"
     if [ "${graph_type_queries_by_status}" = "DERIVE" ]; then
         queries_by_status_vlabel="queries / second"
     else
@@ -2260,7 +2309,7 @@ pihole_munin_config_queries_by_status() {
 
 pihole_munin_config_queries_by_type() {
     # Default queries by type graph type and vlabel based on type
-    graph_type_queries_by_type="${graph_type_queries_by_type:-"DERIVE"}"
+    graph_type_queries_by_type="${graph_type_queries_by_type:-"${graph_type}"}"
     if [ "${graph_type_queries_by_type}" = "DERIVE" ]; then
         queries_by_type_vlabel="queries / second"
     else
@@ -2330,7 +2379,7 @@ pihole_munin_config_queries_by_type() {
 
 pihole_munin_config_replies() {
     # Default replies graph type and vlabel based on type
-    graph_type_replies="${graph_type_replies:-"DERIVE"}"
+    graph_type_replies="${graph_type_replies:-"${graph_type}"}"
     if [ "${graph_type_replies}" = "DERIVE" ]; then
         replies_vlabel="replies / second"
     else
@@ -2401,7 +2450,7 @@ pihole_munin_config_replies() {
 
 pihole_munin_config_replies_by_type() {
     # Default replies by type graph type and vlabel based on type
-    graph_type_replies_by_type="${graph_type_replies_by_type:-"DERIVE"}"
+    graph_type_replies_by_type="${graph_type_replies_by_type:-"${graph_type}"}"
     if [ "${graph_type_replies_by_type}" = "DERIVE" ]; then
         replies_by_type_vlabel="replies / second"
     else
@@ -2492,7 +2541,7 @@ pihole_munin_config_status() {
         "${status_blocking_status_label:-"blocking status"}" \
         "${status_blocking_status_max:-"1"}" \
         "${status_blocking_status_min:-"-1"}" \
-        "${status_blocking_status_type:-"${graph_type}"}" \
+        "${status_blocking_status_type:-"GAUGE"}" \
         "${status_blocking_status_warn:-"1:1"}"
 }
 
@@ -2575,7 +2624,7 @@ pihole_munin_rev_ptr() {
 
 pihole_munin_config_top_clients() {
     # Default top clients graph type and vlabel based on type
-    graph_type_top_clients="${graph_type_top_clients:-"DERIVE"}"
+    graph_type_top_clients="${graph_type_top_clients:-"${graph_type}"}"
     if [ "${graph_type_top_clients}" = "DERIVE" ]; then
         top_clients_vlabel="queries / second"
     else
@@ -2660,7 +2709,7 @@ pihole_munin_config_top_clients() {
 
 pihole_munin_config_top_domains() {
     # Default top domains graph type and vlabel based on type
-    graph_type_top_domains="${graph_type_top_domains:-"DERIVE"}"
+    graph_type_top_domains="${graph_type_top_domains:-"${graph_type}"}"
     if [ "${graph_type_top_domains}" = "DERIVE" ]; then
         top_domains_vlabel="queries / second"
     else
@@ -2745,7 +2794,7 @@ pihole_munin_config_top_domains() {
 
 pihole_munin_config_unique() {
     # Default unique domains graph type and vlabel based on type
-    graph_type_unique="${graph_type_unique:-"DERIVE"}"
+    graph_type_unique="${graph_type_unique:-"${graph_type}"}"
     if [ "${graph_type_unique}" = "DERIVE" ]; then
         unique_vlabel="domains / second"
     else
@@ -2799,7 +2848,7 @@ pihole_munin_config_unique() {
 
 pihole_munin_config_upstreams() {
     # Default upstreams graph type and vlabel based on type
-    graph_type_upstreams="${graph_type_upstreams:-"DERIVE"}"
+    graph_type_upstreams="${graph_type_upstreams:-"${graph_type}"}"
     if [ "${graph_type_upstreams}" = "DERIVE" ]; then
         upstreams_vlabel="queries / second"
     else
@@ -2963,7 +3012,7 @@ pihole_munin_config_version() {
         pihole_munin_safe_eval version_label "version_" "${pihole_module}" "_label" "${pihole_module}"
         pihole_munin_safe_eval version_max "version_" "${pihole_module}" "_max" "1"
         pihole_munin_safe_eval version_min "version_" "${pihole_module}" "_min" "-1"
-        pihole_munin_safe_eval version_type "version_" "${pihole_module}" "_type" "${graph_type}"
+        pihole_munin_safe_eval version_type "version_" "${pihole_module}" "_type" "GAUGE"
         pihole_munin_safe_eval version_warn "version_" "${pihole_module}" "_warn" ""
         # Print Munin field config for this version key
         pihole_munin_print \
@@ -4812,7 +4861,7 @@ pihole_munin_test() {
             "-V"|"verbose"|"--verbose") verbose="1" ;;
         esac
     done
-    printf "\n  %s Testing pihole_munin_ plugins …\n" \
+    printf "  %s Testing pihole_munin_ plugins …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🧪]" || printf "[🧪] (DRY RUN)")"
     if [ "${dry_run}" -eq 0 ]; then
         # Actually run munin-run for each plugin

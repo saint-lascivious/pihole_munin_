@@ -43,7 +43,7 @@ set -e
 major_version="6"
 minor_version="11"
 micro_version="0"
-version_tag="-beta1"
+version_tag="-beta2"
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
@@ -1895,7 +1895,7 @@ pihole_munin_config_frequency() {
         "${frequency_frequency_label:-"frequency"}" \
         "${frequency_frequency_max:-}" \
         "${frequency_frequency_min:-"0"}" \
-        "${frequency_frequency_type:-"${graph_type}"}" \
+        "${frequency_frequency_type:-"GAUGE"}" \
         "${frequency_frequency_warn:-}"
 }
 
@@ -2630,9 +2630,8 @@ pihole_munin_config_top_clients() {
     else
         top_clients_vlabel="queries"
     fi
-    [ "${graph_total_top_clients:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_top_clients:-total}"
     top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}?count=${top_clients_n}") || exit 1
-    # Output Munin graph config header
+    # Output Munin graph config header (without graph_total for now)
     printf "%s\n" \
         "graph ${graph_top_clients:-${graph}}" \
         "graph_args ${graph_args_top_clients:-${graph_args}}" \
@@ -2641,53 +2640,55 @@ pihole_munin_config_top_clients() {
         "graph_info ${graph_info_top_clients:-"This graph shows Pi-hole's top clients by query count (max ${top_clients_n} clients)"}" \
         "graph_scale ${graph_scale_top_clients:-${graph_scale}}" \
         "graph_title ${graph_title_top_clients:-"Pi-hole top clients"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
         "graph_vlabel ${graph_vlabel_top_clients:-${top_clients_vlabel}}" \
         "graph_width ${graph_width_top_clients:-${graph_width}}"
+    # Count real clients (for graph_total logic)
+    real_clients_count=$(printf "%s" "${top_clients_response}" | jq -r '.clients | length')
     # Print Munin field definitions for top N clients from API
-    printf "%s" "${top_clients_response}" | jq -r ".clients[] | \"\(.name) \(.count)\"" | awk 'NF == 2' |
-    while read -r raw_key raw_value; do
-        top_clients_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
-        case "${top_clients_key}" in
-            [0-9]*) top_clients_key="top_clients_${top_clients_key}" ;;
-        esac
-        default_label="${raw_key}"
-        default_info="Pi-hole top client ${raw_key}"
-        pihole_munin_safe_eval top_clients_colour "top_clients_" "${top_clients_key}" "_colour" ""
-        pihole_munin_safe_eval top_clients_crit "top_clients_" "${top_clients_key}" "_crit" ""
-        pihole_munin_safe_eval top_clients_draw "top_clients_" "${top_clients_key}" "_draw" "${graph_draw}"
-        pihole_munin_safe_eval top_clients_graph "top_clients_" "${top_clients_key}" "_graph" "yes"
-        pihole_munin_safe_eval top_clients_type "top_clients_" "${top_clients_key}" "_type" "${graph_type_top_clients}"
-        # Info string: singular/plural for DERIVE, else allow override
-        if [ "${graph_type_top_clients:-${top_clients_type}}" = "DERIVE" ]; then
-            if [ "${raw_value}" -eq 1 ]; then
-                top_clients_info="${default_info} (${raw_value} query)"
+    if [ "${real_clients_count}" -gt 0 ]; then
+        printf "%s" "${top_clients_response}" | jq -r ".clients[] | \"\(.name) \(.count)\"" | awk 'NF == 2' |
+        while read -r raw_key raw_value; do
+            top_clients_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
+            case "${top_clients_key}" in
+                [0-9]*) top_clients_key="top_clients_${top_clients_key}" ;;
+            esac
+            default_label="${raw_key}"
+            default_info="Pi-hole top client ${raw_key}"
+            pihole_munin_safe_eval top_clients_colour "top_clients_" "${top_clients_key}" "_colour" ""
+            pihole_munin_safe_eval top_clients_crit "top_clients_" "${top_clients_key}" "_crit" ""
+            pihole_munin_safe_eval top_clients_draw "top_clients_" "${top_clients_key}" "_draw" "${graph_draw}"
+            pihole_munin_safe_eval top_clients_graph "top_clients_" "${top_clients_key}" "_graph" "yes"
+            pihole_munin_safe_eval top_clients_type "top_clients_" "${top_clients_key}" "_type" "${graph_type_top_clients}"
+            # Info string: singular/plural for DERIVE, else allow override
+            if [ "${graph_type_top_clients:-${top_clients_type}}" = "DERIVE" ]; then
+                if [ "${raw_value}" -eq 1 ]; then
+                    top_clients_info="${default_info} (${raw_value} query)"
+                else
+                    top_clients_info="${default_info} (${raw_value} queries)"
+                fi
             else
-                top_clients_info="${default_info} (${raw_value} queries)"
+                pihole_munin_safe_eval top_clients_info "top_clients_" "${top_clients_key}" "_info" "${default_info}"
             fi
-        else
-            pihole_munin_safe_eval top_clients_info "top_clients_" "${top_clients_key}" "_info" "${default_info}"
-        fi
-        pihole_munin_safe_eval top_clients_label "top_clients_" "${top_clients_key}" "_label" "${default_label}"
-        pihole_munin_safe_eval top_clients_max "top_clients_" "${top_clients_key}" "_max" ""
-        pihole_munin_safe_eval top_clients_min "top_clients_" "${top_clients_key}" "_min" "0"
-        pihole_munin_safe_eval top_clients_warn "top_clients_" "${top_clients_key}" "_warn" ""
-        # Print Munin field config for this client key
-        pihole_munin_print \
-            "${top_clients_key}" \
-            "${top_clients_colour:-}" \
-            "${top_clients_crit:-}" \
-            "${top_clients_draw:-}" \
-            "${top_clients_graph:-}" \
-            "${top_clients_info:-}" \
-            "${top_clients_label:-}" \
-            "${top_clients_max:-}" \
-            "${top_clients_min:-}" \
-            "${top_clients_type:-}" \
-            "${top_clients_warn:-}"
-    done
-    # If no clients, output a placeholder field
-    if ! printf "%s" "${top_clients_response}" | jq -e '.clients | length > 0' >/dev/null 2>&1; then
+            pihole_munin_safe_eval top_clients_label "top_clients_" "${top_clients_key}" "_label" "${default_label}"
+            pihole_munin_safe_eval top_clients_max "top_clients_" "${top_clients_key}" "_max" ""
+            pihole_munin_safe_eval top_clients_min "top_clients_" "${top_clients_key}" "_min" "0"
+            pihole_munin_safe_eval top_clients_warn "top_clients_" "${top_clients_key}" "_warn" ""
+            # Print Munin field config for this client key
+            pihole_munin_print \
+                "${top_clients_key}" \
+                "${top_clients_colour:-}" \
+                "${top_clients_crit:-}" \
+                "${top_clients_draw:-}" \
+                "${top_clients_graph:-}" \
+                "${top_clients_info:-}" \
+                "${top_clients_label:-}" \
+                "${top_clients_max:-}" \
+                "${top_clients_min:-}" \
+                "${top_clients_type:-}" \
+                "${top_clients_warn:-}"
+        done
+    else
+        # If no clients, output a placeholder field
         pihole_munin_print \
             "none" \
             "" \
@@ -2700,6 +2701,10 @@ pihole_munin_config_top_clients() {
             "0" \
             "${graph_type:-${graph_type_top_clients}}" \
             ""
+    fi
+    # Print graph_total line only if we have real clients and not "undef"
+    if [ "${real_clients_count}" -gt 0 ] && [ "${graph_total_top_clients:-total}" != "undef" ]; then
+        printf "graph_total %s\n" "${graph_total_top_clients:-total}"
     fi
 }
 
@@ -2715,9 +2720,8 @@ pihole_munin_config_top_domains() {
     else
         top_domains_vlabel="queries"
     fi
-    [ "${graph_total_top_domains:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_top_domains:-total}"
     top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}?count=${top_domains_n}") || exit 1
-    # Output Munin graph config header
+    # Output Munin graph config header (without graph_total for now)
     printf "%s\n" \
         "graph ${graph_top_domains:-${graph}}" \
         "graph_args ${graph_args_top_domains:-${graph_args}}" \
@@ -2726,53 +2730,55 @@ pihole_munin_config_top_domains() {
         "graph_info ${graph_info_top_domains:-"This graph shows Pi-hole's top domains by query count (max ${top_domains_n} domains)"}" \
         "graph_scale ${graph_scale_top_domains:-${graph_scale}}" \
         "graph_title ${graph_title_top_domains:-"Pi-hole top domains"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
         "graph_vlabel ${graph_vlabel_top_domains:-${top_domains_vlabel}}" \
         "graph_width ${graph_width_top_domains:-${graph_width}}"
+    # Count real domains (for graph_total logic)
+    real_domains_count=$(printf "%s" "${top_domains_response}" | jq -r '.domains | length')
     # Print Munin field definitions for top N domains from API
-    printf "%s" "${top_domains_response}" | jq -r ".domains[] | \"\(.domain) \(.count)\"" | awk 'NF == 2' |
-    while read -r raw_key raw_value; do
-        top_domains_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
-        case "${top_domains_key}" in
-            [0-9]*) top_domains_key="top_domains_${top_domains_key}" ;;
-        esac
-        default_label="${raw_key}"
-        default_info="Pi-hole top domain ${raw_key}"
-        pihole_munin_safe_eval top_domains_colour "top_domains_" "${top_domains_key}" "_colour" ""
-        pihole_munin_safe_eval top_domains_crit "top_domains_" "${top_domains_key}" "_crit" ""
-        pihole_munin_safe_eval top_domains_draw "top_domains_" "${top_domains_key}" "_draw" "${graph_draw}"
-        pihole_munin_safe_eval top_domains_graph "top_domains_" "${top_domains_key}" "_graph" "yes"
-        pihole_munin_safe_eval top_domains_type "top_domains_" "${top_domains_key}" "_type" "${graph_type_top_domains}"
-        # Info string: singular/plural for DERIVE, else allow override
-        if [ "${graph_type_top_domains:-${top_domains_type}}" = "DERIVE" ]; then
-            if [ "${raw_value}" -eq 1 ]; then
-                top_domains_info="${default_info} (${raw_value} query)"
+    if [ "${real_domains_count}" -gt 0 ]; then
+        printf "%s" "${top_domains_response}" | jq -r ".domains[] | \"\(.domain) \(.count)\"" | awk 'NF == 2' |
+        while read -r raw_key raw_value; do
+            top_domains_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
+            case "${top_domains_key}" in
+                [0-9]*) top_domains_key="top_domains_${top_domains_key}" ;;
+            esac
+            default_label="${raw_key}"
+            default_info="Pi-hole top domain ${raw_key}"
+            pihole_munin_safe_eval top_domains_colour "top_domains_" "${top_domains_key}" "_colour" ""
+            pihole_munin_safe_eval top_domains_crit "top_domains_" "${top_domains_key}" "_crit" ""
+            pihole_munin_safe_eval top_domains_draw "top_domains_" "${top_domains_key}" "_draw" "${graph_draw}"
+            pihole_munin_safe_eval top_domains_graph "top_domains_" "${top_domains_key}" "_graph" "yes"
+            pihole_munin_safe_eval top_domains_type "top_domains_" "${top_domains_key}" "_type" "${graph_type_top_domains}"
+            # Info string: singular/plural for DERIVE, else allow override
+            if [ "${graph_type_top_domains:-${top_domains_type}}" = "DERIVE" ]; then
+                if [ "${raw_value}" -eq 1 ]; then
+                    top_domains_info="${default_info} (${raw_value} query)"
+                else
+                    top_domains_info="${default_info} (${raw_value} queries)"
+                fi
             else
-                top_domains_info="${default_info} (${raw_value} queries)"
+                pihole_munin_safe_eval top_domains_info "top_domains_" "${top_domains_key}" "_info" "${default_info}"
             fi
-        else
-            pihole_munin_safe_eval top_domains_info "top_domains_" "${top_domains_key}" "_info" "${default_info}"
-        fi
-        pihole_munin_safe_eval top_domains_label "top_domains_" "${top_domains_key}" "_label" "${default_label}"
-        pihole_munin_safe_eval top_domains_max "top_domains_" "${top_domains_key}" "_max" ""
-        pihole_munin_safe_eval top_domains_min "top_domains_" "${top_domains_key}" "_min" "0"
-        pihole_munin_safe_eval top_domains_warn "top_domains_" "${top_domains_key}" "_warn" ""
-        # Print Munin field config for this domain key
-        pihole_munin_print \
-            "${top_domains_key}" \
-            "${top_domains_colour:-}" \
-            "${top_domains_crit:-}" \
-            "${top_domains_draw:-}" \
-            "${top_domains_graph:-}" \
-            "${top_domains_info:-}" \
-            "${top_domains_label:-}" \
-            "${top_domains_max:-}" \
-            "${top_domains_min:-}" \
-            "${top_domains_type:-}" \
-            "${top_domains_warn:-}"
-    done
-    # If no domains, output a placeholder field
-    if ! printf "%s" "${top_domains_response}" | jq -e '.domains | length > 0' >/dev/null 2>&1; then
+            pihole_munin_safe_eval top_domains_label "top_domains_" "${top_domains_key}" "_label" "${default_label}"
+            pihole_munin_safe_eval top_domains_max "top_domains_" "${top_domains_key}" "_max" ""
+            pihole_munin_safe_eval top_domains_min "top_domains_" "${top_domains_key}" "_min" "0"
+            pihole_munin_safe_eval top_domains_warn "top_domains_" "${top_domains_key}" "_warn" ""
+            # Print Munin field config for this domain key
+            pihole_munin_print \
+                "${top_domains_key}" \
+                "${top_domains_colour:-}" \
+                "${top_domains_crit:-}" \
+                "${top_domains_draw:-}" \
+                "${top_domains_graph:-}" \
+                "${top_domains_info:-}" \
+                "${top_domains_label:-}" \
+                "${top_domains_max:-}" \
+                "${top_domains_min:-}" \
+                "${top_domains_type:-}" \
+                "${top_domains_warn:-}"
+        done
+    else
+        # If no domains, output a placeholder field
         pihole_munin_print \
             "none" \
             "" \
@@ -2785,6 +2791,10 @@ pihole_munin_config_top_domains() {
             "0" \
             "${graph_type:-${graph_type_top_domains}}" \
             ""
+    fi
+    # Print graph_total line only if we have real domains and not "undef"
+    if [ "${real_domains_count}" -gt 0 ] && [ "${graph_total_top_domains:-total}" != "undef" ]; then
+        printf "graph_total %s\n" "${graph_total_top_domains:-total}"
     fi
 }
 

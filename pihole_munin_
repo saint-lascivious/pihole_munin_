@@ -40,10 +40,10 @@
 set -e
 
 # Version string components
-major_version="6"
-minor_version="11"
+major_version="1"
+minor_version="0"
 micro_version="0"
-version_tag="-beta2"
+version_tag="-release"
 
 # Set local version
 # May be overridden by environment variable PIHOLE_MUNIN_VERSION
@@ -101,18 +101,6 @@ Plugins with an asterisk (*) are enabled by default.
   unique*: Shows the number of unique domains queried by Pi-hole
   upstreams: Shows the query counts for each of Pi-hole's upstream destinations
   version: Shows the version status of Pi-hole components
-
-You can override which plugins are enabled by setting the 'plugins' variable.
-
-Invalid plugin names will be skipped with a warning.
-
-E.g.
-
-  env.plugins cache clients queries
-
-Note: This affects the 'install', 'test' and 'uninstall' commands if executed via 'munin-run'.
-
-This is somewhat spooky, and ideally should be avoided.
 
 Specify the plugins to be installed via the command line when using the 'admin' command (recommended).
 
@@ -343,18 +331,6 @@ Example configuration for /etc/munin/plugin-conf.d/pihole_munin_
 
       # The default value is 25, the maximum and minimum values are 100 and 1
       # respectively.
-
-      # You can override which plugins are enabled by setting the 'plugins' variable.
-
-      # Invalid plugin names will be skipped with a warning.
-
-      # Example:
-      #   env.plugins cache clients queries
-
-      # Note: This affects the 'install', 'test' and 'uninstall' commands
-      # if executed via 'munin-run'.
-
-      # This is somewhat spooky, and ideally should be avoided.
 
       # Specify the plugins to be installed via the command line when using the
       # 'admin' command (recommended).
@@ -855,13 +831,13 @@ password_set="0"     # Flag: 1 if password is set, 0 otherwise
 host="${host:-"127.0.0.1"}"  # Default host is localhost
 is_localhost="0"             # Flag: 1 if host is local
 
-cli_password="${cli_password:-/etc/pihole/cli_pw}"  # Path to CLI password file
+cli_password="${cli_password:-"/etc/pihole/cli_pw"}"  # Path to CLI password file
 
 ###############################################################################
 # Colour Output Setup
 ###############################################################################
 
-use_colour="${USE_COLOUR:-1}"  # Enable colour output by default
+use_colour="${USE_COLOUR:-"1"}"  # Enable colour output by default
 
 # Set colour codes if output is a terminal and TERM is not 'dumb'
 if [ "${use_colour}" = "1" ] && [ -t 1 ] && [ -n "${TERM}" ] && [ "${TERM}" != "dumb" ]; then
@@ -891,6 +867,85 @@ else
     TEXT_VIOLET=''
     TEXT_RESET=''
 fi
+
+###############################################################################
+# Terminal Cleanup
+###############################################################################
+
+pihole_munin_term_cleanup() {
+    # Restore terminal settings and print newline
+    stty sane
+    printf '\n'
+}
+
+###############################################################################
+# Abort Handler
+###############################################################################
+
+pihole_munin_abort_handler() {
+    # Perform terminal cleanup
+    pihole_munin_term_cleanup
+    # Print abort message and exit with code 130
+    printf "%b\n" "  [❌] ${TEXT_RED}Aborted (SIGINT).${TEXT_RESET}" >&2
+    exit 130
+}
+
+# Trap INT and TERM signals to abort handler
+trap pihole_munin_abort_handler INT TERM
+
+# Directory for plugin state files (default: /tmp)
+pihole_munin_plugstate="${PIHOLE_MUNIN_PLUGSTATE:-${MUNIN_PLUGSTATE:-"/tmp"}}"
+mkdir -p "${pihole_munin_plugstate}"   # Ensure state directory exists
+
+# Lock file path
+pihole_munin_lockfile="${pihole_munin_plugstate}/pihole_munin_${pihole_munin_plugin_id}.lock"
+
+###############################################################################
+# Lock Cleanup
+###############################################################################
+
+pihole_munin_lock_cleanup() {
+    [ -f "${pihole_munin_lockfile}" ] && rm -f "${pihole_munin_lockfile}"
+}
+
+###############################################################################
+# Fuck You Shellcheck
+###############################################################################
+# Shellcheck seems to just give up parsing traps in arbirarily large scripts
+# so we have to do this convince it that the functions are used actually used
+###############################################################################
+
+if [ "${__FUCK_YOU_SHELLCHECK:-}" = "1" ]; then
+    # Fun Fact: Shellcheck will complain about *_lock_cleanup function never
+    # being invoked unless this list of functions is ordered in precisely
+    # this fashion
+    pihole_munin_term_cleanup
+    pihole_munin_lock_cleanup
+    pihole_munin_abort_handler
+fi
+
+###############################################################################
+# Lock File Mechanism
+###############################################################################
+# Ensures only one instance of a plugin runs at a time.
+# Creates a lock file in the state directory and removes it on exit.
+###############################################################################
+
+case "$1" in
+    ""|"fetch"|"config"|"autoconf")
+        if [ -f "${pihole_munin_lockfile}" ]; then
+            lock_pid=$(cat "${pihole_munin_lockfile}")
+            if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
+                printf "%s\n" "  [❌] '${pihole_munin_plugin_id}' is already running at PID ${lock_pid}." >&2
+                exit 1
+            else
+                rm -f "${pihole_munin_lockfile}"
+            fi
+        fi
+        printf "%s\n" "$$" > "${pihole_munin_lockfile}"
+        trap pihole_munin_lock_cleanup EXIT INT TERM
+        ;;
+esac
 
 ###############################################################################
 # Protocol Normalisation
@@ -954,38 +1009,6 @@ else
         fi
     fi
 fi
-
-###############################################################################
-# Terminal Cleanup
-###############################################################################
-
-pihole_munin_term_cleanup() {
-    # Restore terminal settings and print newline
-    stty sane
-    printf '\n'
-}
-
-###############################################################################
-# Abort Handler
-###############################################################################
-
-pihole_munin_abort_handler() {
-    # Perform terminal cleanup
-    pihole_munin_term_cleanup
-    # Print abort message and exit with code 130
-    printf "%b\n" "  [❌] ${TEXT_RED}Aborted (SIGINT).${TEXT_RESET}" >&2
-    exit 130
-}
-
-# Shellcheck seems to just give up parsing traps in arbirarily large scripts
-# so we have to do this convince it that the functions are used actually used
-if [ "${__FUCK_YOU_SHELLCHECK:-}" = "1" ]; then
-    pihole_munin_term_cleanup
-    pihole_munin_abort_handler
-fi
-
-# Trap INT and TERM signals to abort handler
-trap pihole_munin_abort_handler INT TERM
 
 ###############################################################################
 # Munin Field Output Helper
@@ -1132,15 +1155,22 @@ pihole_munin_print() {
 # API Endpoint Setup
 ###############################################################################
 
-proto="${proto:-http}"                          # Default protocol
-port="${port:-80}"                              # Default port
-api="${api:-/api}"                              # Default API path
+proto="${proto:-"http"}"                        # Default protocol
+port="${port:-"80"}"                            # Default port
+api="${api:-"/api"}"                            # Default API path
 
 api_target="${proto}://${host}:${port}${api}"   # Full API base URL
-auth_url="${auth_url:-/auth}"                   # Auth endpoint
+auth_url="${auth_url:-"/auth"}"                 # Auth endpoint
 
 auth_required="1"                               # Flag: 1 auth required
 already_authed="0"                              # Flag: 1 already authed
+
+###############################################################################
+# Session and State Variables
+###############################################################################
+
+session_cache="${session_cache:-"0"}"  # Enable (1), disable (0) session cache
+seconds_timestamp=$(date +%s)          # Epoch offset for cache TTL checks
 
 ###############################################################################
 # Authentication Check Function
@@ -1189,17 +1219,6 @@ pihole_munin_auth_check() {
 }
 
 ###############################################################################
-# Session and State Variables
-###############################################################################
-
-session_cache="${session_cache:-"0"}"  # Enable (1), disable (0) session cache
-seconds_timestamp=$(date +%s)          # Epoch offset for cache TTL checks
-
-# Directory for plugin state files (default: /tmp)
-pihole_munin_plugstate="${PIHOLE_MUNIN_PLUGSTATE:-${MUNIN_PLUGSTATE:-/tmp}}"
-mkdir -p "${pihole_munin_plugstate}"   # Ensure state directory exists
-
-###############################################################################
 # Authentication Function
 ###############################################################################
 # Usage:
@@ -1227,7 +1246,7 @@ pihole_munin_auth() {
     if [ "${session_cache}" -eq 1 ] && [ -r "${pihole_munin_session_file}" ]; then
         session_time=$(head -n 1 "${pihole_munin_session_file}")  # Read timestamp from file
         # If cached session is still valid (not expired)
-        if [ $((seconds_timestamp - session_time)) -lt "${session_ttl:-300}" ]; then
+        if [ $((seconds_timestamp - session_time)) -lt "${session_ttl:-"300"}" ]; then
             pihole_munin_session_sid=$(tail -n 1 "${pihole_munin_session_file}")  # Read session ID
             return 0  # Use cached session
         fi
@@ -1395,7 +1414,7 @@ pihole_munin_state_handler() {
     # If state file exists, check if cache is still valid
     if [ -f "${pihole_munin_statefile}" ]; then
         state_time=$(head -n 1 "${pihole_munin_statefile}")  # Read timestamp
-        state_ttl="${state_ttl:-240}"                        # Default TTL
+        state_ttl="${state_ttl:-"240"}"                      # Default TTL
         # Allow plugin-specific TTL override
         pihole_munin_safe_eval state_ttl "" "${pihole_munin_plugin_id}_state_ttl" "" "${state_ttl}"
         # If cache is still valid
@@ -1580,13 +1599,13 @@ pihole_munin_config_cache() {
             esac
             # Compose info string
             if [ "${graph_type_cache:-${cache_type}}" = "DERIVE" ]; then
+                plural="records"
                 if [ "${cache_value}" -eq 1 ]; then
-                    cache_info="${cache_doc_info} (${cache_value} record) ${cache_doc_text}"
-                else
-                    cache_info="${cache_doc_info} (${cache_value} records) ${cache_doc_text}"
+                    plural="record"
                 fi
+                cache_info="$(printf "%s" "${cache_doc_info} (${cache_value} ${plural}) ${cache_doc_text}" | tr '\n' ' ' | sed 's/  */ /g')"
             else
-                pihole_munin_safe_eval cache_info "cache_" "${cache_key}" "_info" "${cache_doc_info} ${cache_doc_text}"
+                pihole_munin_safe_eval cache_info "cache_" "${cache_key}" "_info" "$(printf "%s" "${cache_doc_info} ${cache_doc_text}" | tr '\n' ' ' | sed 's/  */ /g')"
             fi
             pihole_munin_safe_eval cache_label "cache_" "${cache_key}" "_label" "${cache_key}"
             pihole_munin_safe_eval cache_max "cache_" "${cache_key}" "_max" ""
@@ -1621,8 +1640,72 @@ pihole_munin_config_cache_by_type() {
     else
         cache_by_type_vlabel="resource records"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_cache_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_cache_by_type:-total}"
+    # Fetch cache by type metrics from API
+    cache_by_type_response=$(pihole_munin_state_handler "${info_metrics_url}") || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    cache_by_type_fields_output="$(
+        printf "%s" "${cache_by_type_response}" | jq -c '.metrics.dns.cache.content[]' \
+        | while read -r cache_by_type_entry; do
+            cache_by_type_name=$(printf '%s' "${cache_by_type_entry}" | jq -r '.name')
+            cache_by_type_valid=$(printf '%s' "${cache_by_type_entry}" | jq -r '.count.valid')
+            cache_by_type_stale=$(printf '%s' "${cache_by_type_entry}" | jq -r '.count.stale')
+            for cache_by_type_entry in "valid" "stale"; do
+                case "${cache_by_type_entry}" in
+                    "valid")
+                        cache_by_type_key="${cache_by_type_name}"
+                        cache_by_type_default_label="${cache_by_type_name}"
+                        cache_by_type_value="${cache_by_type_valid}"
+                        ;;
+                    "stale")
+                        cache_by_type_key="${cache_by_type_name}_STALE"
+                        cache_by_type_default_label="${cache_by_type_name} (stale)"
+                        cache_by_type_value="${cache_by_type_stale}"
+                        ;;
+                esac
+                if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne 0 ]; then
+                    pihole_munin_safe_eval cache_by_type_colour "cache_by_type_" "${cache_by_type_key}" "_colour" ""
+                    pihole_munin_safe_eval cache_by_type_crit "cache_by_type_" "${cache_by_type_key}" "_crit" ""
+                    pihole_munin_safe_eval cache_by_type_draw "cache_by_type_" "${cache_by_type_key}" "_draw" "${graph_draw}"
+                    pihole_munin_safe_eval cache_by_type_graph "cache_by_type_" "${cache_by_type_key}" "_graph" "yes"
+                    pihole_munin_safe_eval cache_by_type_type "cache_by_type_" "${cache_by_type_key}" "_type" "${graph_type_cache_by_type}"
+                    if [ "${graph_type_cache_by_type:-${cache_by_type_type}}" = "DERIVE" ]; then
+                        plural="records"
+                        if [ "${cache_by_type_value}" -eq 1 ]; then
+                            plural="record"
+                        fi
+                        cache_by_type_info="Pi-hole cache type ${cache_by_type_default_label} (${cache_by_type_value} ${plural})"
+                    else
+                        pihole_munin_safe_eval cache_by_type_info "cache_by_type_" "${cache_by_type_key}" "_info" "Pi-hole cache type ${cache_by_type_default_label}"
+                    fi
+                    pihole_munin_safe_eval cache_by_type_label "cache_by_type_" "${cache_by_type_key}" "_label" "${cache_by_type_default_label}"
+                    pihole_munin_safe_eval cache_by_type_max "cache_by_type_" "${cache_by_type_key}" "_max" ""
+                    pihole_munin_safe_eval cache_by_type_min "cache_by_type_" "${cache_by_type_key}" "_min" "0"
+                    pihole_munin_safe_eval cache_by_type_warn "cache_by_type_" "${cache_by_type_key}" "_warn" ""
+                    # Print Munin field config for this cache type key
+                    pihole_munin_print \
+                        "${cache_by_type_key}" \
+                        "${cache_by_type_colour:-}" \
+                        "${cache_by_type_crit:-}" \
+                        "${cache_by_type_draw:-}" \
+                        "${cache_by_type_graph:-}" \
+                        "${cache_by_type_info:-}" \
+                        "${cache_by_type_label:-}" \
+                        "${cache_by_type_max:-}" \
+                        "${cache_by_type_min:-}" \
+                        "${cache_by_type_type:-}" \
+                        "${cache_by_type_warn:-}"
+                fi
+            done
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${cache_by_type_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_cache_by_type:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_cache_by_type:-"total"}"
+    else
+        print_total_line=""
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_cache_by_type:-${graph}}" \
@@ -1632,70 +1715,26 @@ pihole_munin_config_cache_by_type() {
         "graph_info ${graph_info_cache_by_type:-"This graph shows Pi-hole's cached records by type"}" \
         "graph_scale ${graph_scale_cache_by_type:-${graph_scale}}" \
         "graph_title ${graph_title_cache_by_type:-"Pi-hole cache by type"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
+        "${print_total_line}" \
         "graph_vlabel ${graph_vlabel_cache_by_type:-${cache_by_type_vlabel}}" \
         "graph_width ${graph_width_cache_by_type:-${graph_width}}"
-    # Fetch cache by type metrics from API
-    cache_by_type_response=$(pihole_munin_state_handler "${info_metrics_url}") || exit 1
-    # Iterate over each cache type entry in the JSON
-    printf "%s" "${cache_by_type_response}" | jq -c '.metrics.dns.cache.content[]' \
-    | while read -r cache_by_type_entry; do
-        # Extract type name and counts
-        cache_by_type_name=$(printf '%s' "${cache_by_type_entry}" | jq -r '.name')
-        cache_by_type_valid=$(printf '%s' "${cache_by_type_entry}" | jq -r '.count.valid')
-        cache_by_type_stale=$(printf '%s' "${cache_by_type_entry}" | jq -r '.count.stale')
-        # For both valid and stale counts
-        for cache_by_type_entry in "valid" "stale"; do
-            case "${cache_by_type_entry}" in
-                "valid")
-                    cache_by_type_key="${cache_by_type_name}"
-                    cache_by_type_default_label="${cache_by_type_name}"
-                    cache_by_type_value="${cache_by_type_valid}"
-                    ;;
-                "stale")
-                    cache_by_type_key="${cache_by_type_name}_STALE"
-                    cache_by_type_default_label="${cache_by_type_name} (stale)"
-                    cache_by_type_value="${cache_by_type_stale}"
-                    ;;
-            esac
-            # Only print if graph_zero is enabled or value is non-zero
-            if pihole_munin_graph_zero "cache_by_type" || [ "${cache_by_type_value}" -ne 0 ]; then
-                # Load per-key config overrides
-                pihole_munin_safe_eval cache_by_type_colour "cache_by_type_" "${cache_by_type_key}" "_colour" ""
-                pihole_munin_safe_eval cache_by_type_crit "cache_by_type_" "${cache_by_type_key}" "_crit" ""
-                pihole_munin_safe_eval cache_by_type_draw "cache_by_type_" "${cache_by_type_key}" "_draw" "${graph_draw}"
-                pihole_munin_safe_eval cache_by_type_graph "cache_by_type_" "${cache_by_type_key}" "_graph" "yes"
-                pihole_munin_safe_eval cache_by_type_type "cache_by_type_" "${cache_by_type_key}" "_type" "${graph_type_cache_by_type}"
-                # Conditionally append value to info for DERIVE type
-                if [ "${graph_type_cache_by_type:-${cache_by_type_type}}" = "DERIVE" ]; then
-                    if [ "${cache_by_type_value}" -eq 1 ]; then
-                        cache_by_type_info="Pi-hole cache type ${cache_by_type_default_label} (${cache_by_type_value} record)"
-                    else
-                        cache_by_type_info="Pi-hole cache type ${cache_by_type_default_label} (${cache_by_type_value} records)"
-                    fi
-                else
-                    pihole_munin_safe_eval cache_by_type_info "cache_by_type_" "${cache_by_type_key}" "_info" "Pi-hole cache type ${cache_by_type_default_label}"
-                fi
-                pihole_munin_safe_eval cache_by_type_label "cache_by_type_" "${cache_by_type_key}" "_label" "${cache_by_type_default_label}"
-                pihole_munin_safe_eval cache_by_type_max "cache_by_type_" "${cache_by_type_key}" "_max" ""
-                pihole_munin_safe_eval cache_by_type_min "cache_by_type_" "${cache_by_type_key}" "_min" "0"
-                pihole_munin_safe_eval cache_by_type_warn "cache_by_type_" "${cache_by_type_key}" "_warn" ""
-                # Print Munin field config for this cache type key
-                pihole_munin_print \
-                    "${cache_by_type_key}" \
-                    "${cache_by_type_colour:-}" \
-                    "${cache_by_type_crit:-}" \
-                    "${cache_by_type_draw:-}" \
-                    "${cache_by_type_graph:-}" \
-                    "${cache_by_type_info:-}" \
-                    "${cache_by_type_label:-}" \
-                    "${cache_by_type_max:-}" \
-                    "${cache_by_type_min:-}" \
-                    "${cache_by_type_type:-}" \
-                    "${cache_by_type_warn:-}"
-            fi
-        done
-    done
+    # Output fields or a placeholder if none
+    if [ -n "${cache_by_type_fields_output}" ]; then
+        printf "%s\n" "${cache_by_type_fields_output}"
+    else
+        pihole_munin_print \
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No cache types" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_cache_by_type}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -1705,7 +1744,7 @@ pihole_munin_config_cache_by_type() {
 # (default: 25, min: 1, max: 100)
 
 # Top N Limit Enforcement
-top_n="${top_n:-25}"
+top_n="${top_n:-"25"}"
 if [ "${top_n}" -gt 100 ]; then
     top_n="100";
 elif [ "${top_n}" -lt 1 ]; then
@@ -2168,8 +2207,65 @@ pihole_munin_config_queries() {
     else
         queries_vlabel="queries"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_queries:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries:-total}"
+    # Fetch queries metrics from API
+    queries_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    queries_fields_output="$(
+        for queries_key_label in \
+            "blocked|queries blocked" \
+            "cached|queries cached" \
+            "forwarded|queries forwarded"; do
+            queries_key=${queries_key_label%%|*}  # Key for JSON lookup
+            queries_default_info="Pi-hole ${queries_key_label#*|}"  # Info string
+            queries_default_label=$(printf "%s" "${queries_key}" | sed 's/_/ /g')  # Human-readable label
+            # Extract value from JSON, default to 0 if missing
+            queries_value=$(printf '%s' "${queries_response}" | jq -r --arg k "${queries_key}" '.queries[$k] // 0')
+            # Only print if graph_zero is enabled or value is non-zero
+            if pihole_munin_graph_zero "queries" || [ "${queries_value}" -ne 0 ]; then
+                # Load per-key config overrides
+                pihole_munin_safe_eval queries_colour "queries_" "${queries_key}" "_colour" ""
+                pihole_munin_safe_eval queries_crit "queries_" "${queries_key}" "_crit" ""
+                pihole_munin_safe_eval queries_draw "queries_" "${queries_key}" "_draw" "${graph_draw}"
+                pihole_munin_safe_eval queries_graph "queries_" "${queries_key}" "_graph" "yes"
+                pihole_munin_safe_eval queries_type "queries_" "${queries_key}" "_type" "${graph_type_queries}"
+                # Conditionally append value to info for DERIVE type
+                if [ "${graph_type_queries:-${queries_type}}" = "DERIVE" ]; then
+                    plural="queries"
+                    if [ "${queries_value}" -eq 1 ]; then
+                        plural="query"
+                    fi
+                    queries_info="Pi-hole ${queries_key_label#*|} (${queries_value} ${plural})"
+                else
+                    pihole_munin_safe_eval queries_info "queries_" "${queries_key}" "_info" "${queries_default_info}"
+                fi
+                pihole_munin_safe_eval queries_label "queries_" "${queries_key}" "_label" "${queries_default_label}"
+                pihole_munin_safe_eval queries_max "queries_" "${queries_key}" "_max" ""
+                pihole_munin_safe_eval queries_min "queries_" "${queries_key}" "_min" "0"
+                pihole_munin_safe_eval queries_warn "queries_" "${queries_key}" "_warn" ""
+                # Print Munin field config for this queries key
+                pihole_munin_print \
+                    "${queries_key}" \
+                    "${queries_colour:-}" \
+                    "${queries_crit:-}" \
+                    "${queries_draw:-}" \
+                    "${queries_graph:-}" \
+                    "${queries_info:-}" \
+                    "${queries_label:-}" \
+                    "${queries_max:-}" \
+                    "${queries_min:-}" \
+                    "${queries_type:-}" \
+                    "${queries_warn:-}"
+            fi
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${queries_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_queries:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_queries:-"total"}"
+    else
+        print_total_line=""
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_queries:-${graph}}" \
@@ -2179,58 +2275,26 @@ pihole_munin_config_queries() {
         "graph_info ${graph_info_queries:-"This graph shows Pi-hole's queries"}" \
         "graph_scale ${graph_scale_queries:-${graph_scale}}" \
         "graph_title ${graph_title_queries:-"Pi-hole queries"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
+        "${print_total_line}" \
         "graph_vlabel ${graph_vlabel_queries:--${queries_vlabel}}" \
         "graph_width ${graph_width_queries:-${graph_width}}"
-    # Fetch queries metrics from API
-    queries_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
-    # For each queries key/label pair
-    for queries_key_label in \
-        "blocked|queries blocked" \
-        "cached|queries cached" \
-        "forwarded|queries forwarded"; do
-        queries_key=${queries_key_label%%|*}  # Key for JSON lookup
-        queries_default_info="Pi-hole ${queries_key_label#*|}"  # Info string
-        queries_default_label=$(printf "%s" "${queries_key}" | sed 's/_/ /g')  # Human-readable label
-        # Extract value from JSON, default to 0 if missing
-        queries_value=$(printf '%s' "${queries_response}" | jq -r --arg k "${queries_key}" '.queries[$k] // 0')
-        # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries" || [ "${queries_value}" -ne 0 ]; then
-            # Load per-key config overrides
-            pihole_munin_safe_eval queries_colour "queries_" "${queries_key}" "_colour" ""
-            pihole_munin_safe_eval queries_crit "queries_" "${queries_key}" "_crit" ""
-            pihole_munin_safe_eval queries_draw "queries_" "${queries_key}" "_draw" "${graph_draw}"
-            pihole_munin_safe_eval queries_graph "queries_" "${queries_key}" "_graph" "yes"
-            pihole_munin_safe_eval queries_type "queries_" "${queries_key}" "_type" "${graph_type_queries}"
-            # Conditionally append value to info for DERIVE type
-            if [ "${graph_type_queries:-${queries_type}}" = "DERIVE" ]; then
-                if [ "${queries_value}" -eq 1 ]; then
-                    queries_info="Pi-hole ${queries_key_label#*|} (${queries_value} query)"
-                else
-                    queries_info="Pi-hole ${queries_key_label#*|} (${queries_value} queries)"
-                fi
-            else
-                pihole_munin_safe_eval queries_info "queries_" "${queries_key}" "_info" "${queries_default_info}"
-            fi
-            pihole_munin_safe_eval queries_label "queries_" "${queries_key}" "_label" "${queries_default_label}"
-            pihole_munin_safe_eval queries_max "queries_" "${queries_key}" "_max" ""
-            pihole_munin_safe_eval queries_min "queries_" "${queries_key}" "_min" "0"
-            pihole_munin_safe_eval queries_warn "queries_" "${queries_key}" "_warn" ""
-            # Print Munin field config for this queries key
-            pihole_munin_print \
-                "${queries_key}" \
-                "${queries_colour:-}" \
-                "${queries_crit:-}" \
-                "${queries_draw:-}" \
-                "${queries_graph:-}" \
-                "${queries_info:-}" \
-                "${queries_label:-}" \
-                "${queries_max:-}" \
-                "${queries_min:-}" \
-                "${queries_type:-}" \
-                "${queries_warn:-}"
-        fi
-    done
+    # Output fields or a placeholder if none
+    if [ -n "${queries_fields_output}" ]; then
+        printf "%s\n" "${queries_fields_output}"
+    else
+        pihole_munin_print \
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No queries" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_queries}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2245,8 +2309,58 @@ pihole_munin_config_queries_by_status() {
     else
         queries_by_status_vlabel="queries"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_queries_by_status:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries_by_status:-total}"
+    # Fetch queries by status metrics from API
+    queries_by_status_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    queries_by_status_fields_output="$(
+        printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | to_entries[] | "\(.key) \(.value)"' \
+        | while read -r queries_by_status_key queries_by_status_value; do
+            # Only print if graph_zero is enabled or value is non-zero
+            if pihole_munin_graph_zero "queries_by_status" || [ "${queries_by_status_value}" -ne 0 ]; then
+                # Load per-key config overrides
+                pihole_munin_safe_eval queries_by_status_colour "queries_by_status_" "${queries_by_status_key}" "_colour" ""
+                pihole_munin_safe_eval queries_by_status_crit "queries_by_status_" "${queries_by_status_key}" "_crit" ""
+                pihole_munin_safe_eval queries_by_status_draw "queries_by_status_" "${queries_by_status_key}" "_draw" "${graph_draw}"
+                pihole_munin_safe_eval queries_by_status_graph "queries_by_status_" "${queries_by_status_key}" "_graph" "yes"
+                pihole_munin_safe_eval queries_by_status_type "queries_by_status_" "${queries_by_status_key}" "_type" "${graph_type_queries_by_status}"
+                # Conditionally append value to info for DERIVE type
+                if [ "${graph_type_queries_by_status:-${queries_by_status_type}}" = "DERIVE" ]; then
+                    plural="queries"
+                    if [ "${queries_by_status_value}" -eq 1 ]; then
+                        plural="query"
+                    fi
+                    queries_by_status_info="Pi-hole query status ${queries_by_status_key} (${queries_by_status_value} ${plural})"
+                else
+                    pihole_munin_safe_eval queries_by_status_info "queries_by_status_" "${queries_by_status_key}" "_info" "Pi-hole query status ${queries_by_status_key}"
+                fi
+                pihole_munin_safe_eval queries_by_status_label "queries_by_status_" "${queries_by_status_key}" "_label" "${queries_by_status_key}"
+                pihole_munin_safe_eval queries_by_status_max "queries_by_status_" "${queries_by_status_key}" "_max" ""
+                pihole_munin_safe_eval queries_by_status_min "queries_by_status_" "${queries_by_status_key}" "_min" "0"
+                pihole_munin_safe_eval queries_by_status_warn "queries_by_status_" "${queries_by_status_key}" "_warn" ""
+                # Print Munin field config for this status key
+                pihole_munin_print \
+                    "${queries_by_status_key}" \
+                    "${queries_by_status_colour:-}" \
+                    "${queries_by_status_crit:-}" \
+                    "${queries_by_status_draw:-}" \
+                    "${queries_by_status_graph:-}" \
+                    "${queries_by_status_info:-}" \
+                    "${queries_by_status_label:-}" \
+                    "${queries_by_status_max:-}" \
+                    "${queries_by_status_min:-}" \
+                    "${queries_by_status_type:-}" \
+                    "${queries_by_status_warn:-}"
+            fi
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${queries_by_status_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_queries_by_status:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_queries_by_status:-"total"}"
+    else
+        print_total_line=""
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_queries_by_status:-${graph}}" \
@@ -2256,51 +2370,26 @@ pihole_munin_config_queries_by_status() {
         "graph_info ${graph_info_queries_by_status:-"This graph shows Pi-hole's queries by status"}" \
         "graph_scale ${graph_scale_queries_by_status:-${graph_scale}}" \
         "graph_title ${graph_title_queries_by_status:-"Pi-hole queries by status"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
+        "${print_total_line}" \
         "graph_vlabel ${graph_vlabel_queries_by_status:-${queries_by_status_vlabel}}" \
         "graph_width ${graph_width_queries_by_status:-${graph_width}}"
-    # Fetch queries by status metrics from API
-    queries_by_status_response=$(pihole_munin_state_handler "${stats_summary_url}" ) || exit 1
-    # Iterate over each status key/value pair
-    printf "%s" "${queries_by_status_response}" | jq -r '.queries.status | to_entries[] | "\(.key) \(.value)"' \
-    | while read -r queries_by_status_key queries_by_status_value; do
-        # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries_by_status" || [ "${queries_by_status_value}" -ne 0 ]; then
-            # Load per-key config overrides
-            pihole_munin_safe_eval queries_by_status_colour "queries_by_status_" "${queries_by_status_key}" "_colour" ""
-            pihole_munin_safe_eval queries_by_status_crit "queries_by_status_" "${queries_by_status_key}" "_crit" ""
-            pihole_munin_safe_eval queries_by_status_draw "queries_by_status_" "${queries_by_status_key}" "_draw" "${graph_draw}"
-            pihole_munin_safe_eval queries_by_status_graph "queries_by_status_" "${queries_by_status_key}" "_graph" "yes"
-            pihole_munin_safe_eval queries_by_status_type "queries_by_status_" "${queries_by_status_key}" "_type" "${graph_type_queries_by_status}"
-            # Conditionally append value to info for DERIVE type
-            if [ "${graph_type_queries_by_status:-${queries_by_status_type}}" = "DERIVE" ]; then
-                if [ "${queries_by_status_value}" -eq 1 ]; then
-                    queries_by_status_info="Pi-hole query status ${queries_by_status_key} (${queries_by_status_value} query)"
-                else
-                    queries_by_status_info="Pi-hole query status ${queries_by_status_key} (${queries_by_status_value} queries)"
-                fi
-            else
-                pihole_munin_safe_eval queries_by_status_info "queries_by_status_" "${queries_by_status_key}" "_info" "Pi-hole query status ${queries_by_status_key}"
-            fi
-            pihole_munin_safe_eval queries_by_status_label "queries_by_status_" "${queries_by_status_key}" "_label" "${queries_by_status_key}"
-            pihole_munin_safe_eval queries_by_status_max "queries_by_status_" "${queries_by_status_key}" "_max" ""
-            pihole_munin_safe_eval queries_by_status_min "queries_by_status_" "${queries_by_status_key}" "_min" "0"
-            pihole_munin_safe_eval queries_by_status_warn "queries_by_status_" "${queries_by_status_key}" "_warn" ""
-            # Print Munin field config for this status key
-            pihole_munin_print \
-                "${queries_by_status_key}" \
-                "${queries_by_status_colour:-}" \
-                "${queries_by_status_crit:-}" \
-                "${queries_by_status_draw:-}" \
-                "${queries_by_status_graph:-}" \
-                "${queries_by_status_info:-}" \
-                "${queries_by_status_label:-}" \
-                "${queries_by_status_max:-}" \
-                "${queries_by_status_min:-}" \
-                "${queries_by_status_type:-}" \
-                "${queries_by_status_warn:-}"
-        fi
-    done
+    # Output fields or a placeholder if none
+    if [ -n "${queries_by_status_fields_output}" ]; then
+        printf "%s\n" "${queries_by_status_fields_output}"
+    else
+        pihole_munin_print \
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No query statuses" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_queries_by_status}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2315,8 +2404,58 @@ pihole_munin_config_queries_by_type() {
     else
         queries_by_type_vlabel="queries"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_queries_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_queries_by_type:-total}"
+    # Fetch queries by type metrics from API
+    queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    queries_by_type_fields_output="$(
+        printf "%s" "${queries_by_type_response}" | jq -r '.types | to_entries[] | "\(.key) \(.value)"' \
+        | while read -r queries_by_type_key queries_by_type_value; do
+            # Only print if graph_zero is enabled or value is non-zero
+            if pihole_munin_graph_zero "queries_by_type" || [ "${queries_by_type_value}" -ne 0 ]; then
+                # Load per-key config overrides
+                pihole_munin_safe_eval queries_by_type_colour "queries_by_type_" "${queries_by_type_key}" "_colour" ""
+                pihole_munin_safe_eval queries_by_type_crit "queries_by_type_" "${queries_by_type_key}" "_crit" ""
+                pihole_munin_safe_eval queries_by_type_draw "queries_by_type_" "${queries_by_type_key}" "_draw" "${graph_draw}"
+                pihole_munin_safe_eval queries_by_type_graph "queries_by_type_" "${queries_by_type_key}" "_graph" "yes"
+                pihole_munin_safe_eval queries_by_type_type "queries_by_type_" "${queries_by_type_key}" "_type" "${graph_type_queries_by_type}"
+                # Conditionally append value to info for DERIVE type
+                if [ "${graph_type_queries_by_type:-${queries_by_type_type}}" = "DERIVE" ]; then
+                    plural="queries"
+                    if [ "${queries_by_type_value}" -eq 1 ]; then
+                        plural="query"
+                    fi
+                    queries_by_type_info="Pi-hole query type ${queries_by_type_key} (${queries_by_type_value} ${plural})"
+                else
+                    pihole_munin_safe_eval queries_by_type_info "queries_by_type_" "${queries_by_type_key}" "_info" "Pi-hole query type ${queries_by_type_key}"
+                fi
+                pihole_munin_safe_eval queries_by_type_label "queries_by_type_" "${queries_by_type_key}" "_label" "${queries_by_type_key}"
+                pihole_munin_safe_eval queries_by_type_max "queries_by_type_" "${queries_by_type_key}" "_max" ""
+                pihole_munin_safe_eval queries_by_type_min "queries_by_type_" "${queries_by_type_key}" "_min" "0"
+                pihole_munin_safe_eval queries_by_type_warn "queries_by_type_" "${queries_by_type_key}" "_warn" ""
+                # Print Munin field config for this type key
+                pihole_munin_print \
+                    "${queries_by_type_key}" \
+                    "${queries_by_type_colour:-}" \
+                    "${queries_by_type_crit:-}" \
+                    "${queries_by_type_draw:-}" \
+                    "${queries_by_type_graph:-}" \
+                    "${queries_by_type_info:-}" \
+                    "${queries_by_type_label:-}" \
+                    "${queries_by_type_max:-}" \
+                    "${queries_by_type_min:-}" \
+                    "${queries_by_type_type:-}" \
+                    "${queries_by_type_warn:-}"
+            fi
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${queries_by_type_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_queries_by_type:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_queries_by_type:-"total"}"
+    else
+        print_total_line=""
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_queries_by_type:-${graph}}" \
@@ -2326,51 +2465,26 @@ pihole_munin_config_queries_by_type() {
         "graph_info ${graph_info_queries_by_type:-"This graph shows Pi-hole's queries by record type"}" \
         "graph_scale ${graph_scale_queries_by_type:-${graph_scale}}" \
         "graph_title ${graph_title_queries_by_type:-"Pi-hole queries by type"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
+        "${print_total_line}" \
         "graph_vlabel ${graph_vlabel_queries_by_type:-${queries_by_type_vlabel}}" \
         "graph_width ${graph_width_queries_by_type:-${graph_width}}"
-    # Fetch queries by type metrics from API
-    queries_by_type_response=$(pihole_munin_state_handler "${stats_query_types_url}" ) || exit 1
-    # Iterate over each type key/value pair
-    printf "%s" "${queries_by_type_response}" | jq -r '.types | to_entries[] | "\(.key) \(.value)"' \
-    | while read -r queries_by_type_key queries_by_type_value; do
-        # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "queries_by_type" || [ "${queries_by_type_value}" -ne 0 ]; then
-            # Load per-key config overrides
-            pihole_munin_safe_eval queries_by_type_colour "queries_by_type_" "${queries_by_type_key}" "_colour" ""
-            pihole_munin_safe_eval queries_by_type_crit "queries_by_type_" "${queries_by_type_key}" "_crit" ""
-            pihole_munin_safe_eval queries_by_type_draw "queries_by_type_" "${queries_by_type_key}" "_draw" "${graph_draw}"
-            pihole_munin_safe_eval queries_by_type_graph "queries_by_type_" "${queries_by_type_key}" "_graph" "yes"
-            pihole_munin_safe_eval queries_by_type_type "queries_by_type_" "${queries_by_type_key}" "_type" "${graph_type_queries_by_type}"
-            # Conditionally append value to info for DERIVE type
-            if [ "${graph_type_queries_by_type:-${queries_by_type_type}}" = "DERIVE" ]; then
-                if [ "${queries_by_type_value}" -eq 1 ]; then
-                    queries_by_type_info="Pi-hole query type ${queries_by_type_key} (${queries_by_type_value} query)"
-                else
-                    queries_by_type_info="Pi-hole query type ${queries_by_type_key} (${queries_by_type_value} queries)"
-                fi
-            else
-                pihole_munin_safe_eval queries_by_type_info "queries_by_type_" "${queries_by_type_key}" "_info" "Pi-hole query type ${queries_by_type_key}"
-            fi
-            pihole_munin_safe_eval queries_by_type_label "queries_by_type_" "${queries_by_type_key}" "_label" "${queries_by_type_key}"
-            pihole_munin_safe_eval queries_by_type_max "queries_by_type_" "${queries_by_type_key}" "_max" ""
-            pihole_munin_safe_eval queries_by_type_min "queries_by_type_" "${queries_by_type_key}" "_min" "0"
-            pihole_munin_safe_eval queries_by_type_warn "queries_by_type_" "${queries_by_type_key}" "_warn" ""
-            # Print Munin field config for this type key
-            pihole_munin_print \
-                "${queries_by_type_key}" \
-                "${queries_by_type_colour:-}" \
-                "${queries_by_type_crit:-}" \
-                "${queries_by_type_draw:-}" \
-                "${queries_by_type_graph:-}" \
-                "${queries_by_type_info:-}" \
-                "${queries_by_type_label:-}" \
-                "${queries_by_type_max:-}" \
-                "${queries_by_type_min:-}" \
-                "${queries_by_type_type:-}" \
-                "${queries_by_type_warn:-}"
-        fi
-    done
+    # Output fields or a placeholder if none
+    if [ -n "${queries_by_type_fields_output}" ]; then
+        printf "%s\n" "${queries_by_type_fields_output}"
+    else
+        pihole_munin_print \
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No query types" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_queries_by_type}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2385,9 +2499,53 @@ pihole_munin_config_replies() {
     else
         replies_vlabel="replies"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_replies:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_replies:-total}"
-    # Print Munin graph config lines, using plugin-specific overrides if set
+    # Fetch replies metrics from API
+    replies_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    replies_fields_output="$(
+        for replies_key in "auth" "forwarded" "local" "optimized" "unanswered"; do
+            replies_value=$(printf '%s\n' "${replies_response}" | jq -r --arg k "${replies_key}" '.metrics.dns.replies[$k] // 0')
+            if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne 0 ]; then
+                pihole_munin_safe_eval replies_colour "replies_" "${replies_key}" "_colour" ""
+                pihole_munin_safe_eval replies_crit "replies_" "${replies_key}" "_crit" ""
+                pihole_munin_safe_eval replies_draw "replies_" "${replies_key}" "_draw" "${graph_draw}"
+                pihole_munin_safe_eval replies_graph "replies_" "${replies_key}" "_graph" "yes"
+                pihole_munin_safe_eval replies_type "replies_" "${replies_key}" "_type" "${graph_type_replies}"
+                if [ "${graph_type_replies:-${replies_type}}" = "DERIVE" ]; then
+                    plural="replies"
+                    if [ "${replies_value}" -eq 1 ]; then
+                        plural="reply"
+                    fi
+                    replies_info="Pi-hole ${replies_key} replies (${replies_value} ${plural})"
+                else
+                    pihole_munin_safe_eval replies_info "replies_" "${replies_key}" "_info" "Pi-hole ${replies_key} replies"
+                fi
+                pihole_munin_safe_eval replies_label "replies_" "${replies_key}" "_label" "${replies_key}"
+                pihole_munin_safe_eval replies_max "replies_" "${replies_key}" "_max" ""
+                pihole_munin_safe_eval replies_min "replies_" "${replies_key}" "_min" "0"
+                pihole_munin_safe_eval replies_warn "replies_" "${replies_key}" "_warn" ""
+                pihole_munin_print \
+                    "${replies_key}" \
+                    "${replies_colour:-}" \
+                    "${replies_crit:-}" \
+                    "${replies_draw:-}" \
+                    "${replies_graph:-}" \
+                    "${replies_info:-}" \
+                    "${replies_label:-}" \
+                    "${replies_max:-}" \
+                    "${replies_min:-}" \
+                    "${replies_type:-}" \
+                    "${replies_warn:-}"
+            fi
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${replies_fields_output}" | grep -c '\.label ')
+    if [ "${graph_total_replies:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_replies:-"total"}"
+    else
+        print_total_line=""
+    fi
     printf "%s\n" \
         "graph ${graph_replies:-${graph}}" \
         "graph_args ${graph_args_replies:-${graph_args}}" \
@@ -2396,52 +2554,25 @@ pihole_munin_config_replies() {
         "graph_info ${graph_info_replies:-"This graph shows Pi-hole's replies"}" \
         "graph_scale ${graph_scale_replies:-${graph_scale}}" \
         "graph_title ${graph_title_replies:-"Pi-hole replies"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
+        "${print_total_line}" \
         "graph_vlabel ${graph_vlabel_replies:-${replies_vlabel}}" \
         "graph_width ${graph_width_replies:-${graph_width}}"
-    # Fetch replies metrics from API
-    replies_response=$(pihole_munin_state_handler "${info_metrics_url}" ) || exit 1
-    # For each replies key to display
-    for replies_key in "auth" "forwarded" "local" "optimized" "unanswered"; do
-        # Extract value from JSON, default to 0 if missing
-        replies_value=$(printf '%s\n' "${replies_response}" | jq -r --arg k "${replies_key}" '.metrics.dns.replies[$k] // 0')
-        # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "replies" || [ "${replies_value}" -ne 0 ]; then
-            # Load per-key config overrides
-            pihole_munin_safe_eval replies_colour "replies_" "${replies_key}" "_colour" ""
-            pihole_munin_safe_eval replies_crit "replies_" "${replies_key}" "_crit" ""
-            pihole_munin_safe_eval replies_draw "replies_" "${replies_key}" "_draw" "${graph_draw}"
-            pihole_munin_safe_eval replies_graph "replies_" "${replies_key}" "_graph" "yes"
-            pihole_munin_safe_eval replies_type "replies_" "${replies_key}" "_type" "${graph_type_replies}"
-            # Conditionally append value to info for DERIVE type
-            if [ "${graph_type_replies:-${replies_type}}" = "DERIVE" ]; then
-                if [ "${replies_value}" -eq 1 ]; then
-                    replies_info="Pi-hole ${replies_key} replies (${replies_value} reply)"
-                else
-                    replies_info="Pi-hole ${replies_key} replies (${replies_value} replies)"
-                fi
-            else
-                pihole_munin_safe_eval replies_info "replies_" "${replies_key}" "_info" "Pi-hole ${replies_key} replies"
-            fi
-            pihole_munin_safe_eval replies_label "replies_" "${replies_key}" "_label" "${replies_key}"
-            pihole_munin_safe_eval replies_max "replies_" "${replies_key}" "_max" ""
-            pihole_munin_safe_eval replies_min "replies_" "${replies_key}" "_min" "0"
-            pihole_munin_safe_eval replies_warn "replies_" "${replies_key}" "_warn" ""
-            # Print Munin field config for this replies key
-            pihole_munin_print \
-                "${replies_key}" \
-                "${replies_colour:-}" \
-                "${replies_crit:-}" \
-                "${replies_draw:-}" \
-                "${replies_graph:-}" \
-                "${replies_info:-}" \
-                "${replies_label:-}" \
-                "${replies_max:-}" \
-                "${replies_min:-}" \
-                "${replies_type:-}" \
-                "${replies_warn:-}"
-        fi
-    done
+    if [ -n "${replies_fields_output}" ]; then
+        printf "%s\n" "${replies_fields_output}"
+    else
+        pihole_munin_print \
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No replies" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_replies}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2456,8 +2587,58 @@ pihole_munin_config_replies_by_type() {
     else
         replies_by_type_vlabel="replies"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_replies_by_type:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_replies_by_type:-total}"
+    # Fetch replies by type metrics from API
+    replies_by_type_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    replies_by_type_fields_output="$(
+        printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | to_entries[] | "\(.key) \(.value)"' \
+        | while read -r replies_by_type_key replies_by_type_value; do
+            # Only print if graph_zero is enabled or value is non-zero
+            if pihole_munin_graph_zero "replies_by_type" || [ "${replies_by_type_value}" -ne 0 ]; then
+                # Load per-key config overrides
+                pihole_munin_safe_eval replies_by_type_colour "replies_by_type_" "${replies_by_type_key}" "_colour" ""
+                pihole_munin_safe_eval replies_by_type_crit "replies_by_type_" "${replies_by_type_key}" "_crit" ""
+                pihole_munin_safe_eval replies_by_type_draw "replies_by_type_" "${replies_by_type_key}" "_draw" "${graph_draw}"
+                pihole_munin_safe_eval replies_by_type_graph "replies_by_type_" "${replies_by_type_key}" "_graph" "yes"
+                pihole_munin_safe_eval replies_by_type_type "replies_by_type_" "${replies_by_type_key}" "_type" "${graph_type_replies_by_type}"
+                # Conditionally append value to info for DERIVE type
+                if [ "${graph_type_replies_by_type:-${replies_by_type_type}}" = "DERIVE" ]; then
+                    plural="replies"
+                    if [ "${replies_by_type_value}" -eq 1 ]; then
+                        plural="reply"
+                    fi
+                    replies_by_type_info="Pi-hole reply type ${replies_by_type_key} (${replies_by_type_value} ${plural})"
+                else
+                    pihole_munin_safe_eval replies_by_type_info "replies_by_type_" "${replies_by_type_key}" "_info" "Pi-hole reply type ${replies_by_type_key}"
+                fi
+                pihole_munin_safe_eval replies_by_type_label "replies_by_type_" "${replies_by_type_key}" "_label" "${replies_by_type_key}"
+                pihole_munin_safe_eval replies_by_type_max "replies_by_type_" "${replies_by_type_key}" "_max" ""
+                pihole_munin_safe_eval replies_by_type_min "replies_by_type_" "${replies_by_type_key}" "_min" "0"
+                pihole_munin_safe_eval replies_by_type_warn "replies_by_type_" "${replies_by_type_key}" "_warn" ""
+                # Print Munin field config for this type key
+                pihole_munin_print \
+                    "${replies_by_type_key}" \
+                    "${replies_by_type_colour:-}" \
+                    "${replies_by_type_crit:-}" \
+                    "${replies_by_type_draw:-}" \
+                    "${replies_by_type_graph:-}" \
+                    "${replies_by_type_info:-}" \
+                    "${replies_by_type_label:-}" \
+                    "${replies_by_type_max:-}" \
+                    "${replies_by_type_min:-}" \
+                    "${replies_by_type_type:-}" \
+                    "${replies_by_type_warn:-}"
+            fi
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${replies_by_type_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_replies_by_type:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_replies_by_type:-"total"}"
+    else
+        print_total_line=""
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_replies_by_type:-${graph}}" \
@@ -2467,51 +2648,26 @@ pihole_munin_config_replies_by_type() {
         "graph_info ${graph_info_replies_by_type:-"This graph shows Pi-hole's replies by record type"}" \
         "graph_scale ${graph_scale_replies_by_type:-${graph_scale}}" \
         "graph_title ${graph_title_replies_by_type:-"Pi-hole replies by type"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
+        "${print_total_line}" \
         "graph_vlabel ${graph_vlabel_replies_by_type:-${replies_by_type_vlabel}}" \
         "graph_width ${graph_width_replies_by_type:-${graph_width}}"
-    # Fetch replies by type metrics from API
-    replies_by_type_response=$(pihole_munin_state_handler "${stats_summary_url}") || exit 1
-    # Iterate over each type key/value pair
-    printf "%s" "${replies_by_type_response}" | jq -r '.queries.replies | to_entries[] | "\(.key) \(.value)"' \
-    | while read -r replies_by_type_key replies_by_type_value; do
-        # Only print if graph_zero is enabled or value is non-zero
-        if pihole_munin_graph_zero "replies_by_type" || [ "${replies_by_type_value}" -ne 0 ]; then
-            # Load per-key config overrides
-            pihole_munin_safe_eval replies_by_type_colour "replies_by_type_" "${replies_by_type_key}" "_colour" ""
-            pihole_munin_safe_eval replies_by_type_crit "replies_by_type_" "${replies_by_type_key}" "_crit" ""
-            pihole_munin_safe_eval replies_by_type_draw "replies_by_type_" "${replies_by_type_key}" "_draw" "${graph_draw}"
-            pihole_munin_safe_eval replies_by_type_graph "replies_by_type_" "${replies_by_type_key}" "_graph" "yes"
-            pihole_munin_safe_eval replies_by_type_type "replies_by_type_" "${replies_by_type_key}" "_type" "${graph_type_replies_by_type}"
-            # Conditionally append value to info for DERIVE type
-            if [ "${graph_type_replies_by_type:-${replies_by_type_type}}" = "DERIVE" ]; then
-                if [ "${replies_by_type_value}" -eq 1 ]; then
-                    replies_by_type_info="Pi-hole reply type ${replies_by_type_key} (${replies_by_type_value} reply)"
-                else
-                    replies_by_type_info="Pi-hole reply type ${replies_by_type_key} (${replies_by_type_value} replies)"
-                fi
-            else
-                pihole_munin_safe_eval replies_by_type_info "replies_by_type_" "${replies_by_type_key}" "_info" "Pi-hole reply type ${replies_by_type_key}"
-            fi
-            pihole_munin_safe_eval replies_by_type_label "replies_by_type_" "${replies_by_type_key}" "_label" "${replies_by_type_key}"
-            pihole_munin_safe_eval replies_by_type_max "replies_by_type_" "${replies_by_type_key}" "_max" ""
-            pihole_munin_safe_eval replies_by_type_min "replies_by_type_" "${replies_by_type_key}" "_min" "0"
-            pihole_munin_safe_eval replies_by_type_warn "replies_by_type_" "${replies_by_type_key}" "_warn" ""
-            # Print Munin field config for this type key
-            pihole_munin_print \
-                "${replies_by_type_key}" \
-                "${replies_by_type_colour:-}" \
-                "${replies_by_type_crit:-}" \
-                "${replies_by_type_draw:-}" \
-                "${replies_by_type_graph:-}" \
-                "${replies_by_type_info:-}" \
-                "${replies_by_type_label:-}" \
-                "${replies_by_type_max:-}" \
-                "${replies_by_type_min:-}" \
-                "${replies_by_type_type:-}" \
-                "${replies_by_type_warn:-}"
-        fi
-    done
+    # Output fields or a placeholder if none
+    if [ -n "${replies_by_type_fields_output}" ]; then
+        printf "%s\n" "${replies_by_type_fields_output}"
+    else
+        pihole_munin_print \
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No reply types" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_replies_by_type}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2555,7 +2711,7 @@ pihole_munin_config_status() {
 pihole_munin_rev_ptr() {
     ip_port="$1"
     reverse_lookup_cache="${pihole_munin_plugstate}/pihole_munin_rev_ptr.state"
-    rev_ptr_ttl="${rev_ptr_ttl:-86400}"  # TTL in seconds (default: 24 hours)
+    rev_ptr_ttl="${rev_ptr_ttl:-"86400"}"  # TTL in seconds (default: 24 hours)
     now=$(date +%s)
     # Remove brackets for IPv6 [::1]:5353
     ip_port=$(printf "%s" "${ip_port}" | sed 's/^\[\(.*\)\]$/\1/')
@@ -2611,7 +2767,7 @@ pihole_munin_rev_ptr() {
         printf "%s %s %s\n" "${ip}" "${now}" "${hostname}" >> "${reverse_lookup_cache}"
         printf "%s\n" "${hostname}"
     else
-        if [ "${dig_status:-0}" -eq 0 ] && [ -z "${hostname}" ]; then
+        if [ "${dig_status:-"0"}" -eq 0 ] && [ -z "${hostname}" ]; then
             printf "%s %s -\n" "${ip}" "${now}" >> "${reverse_lookup_cache}"
         fi
         printf "%s\n" "${ip_port}"
@@ -2631,21 +2787,8 @@ pihole_munin_config_top_clients() {
         top_clients_vlabel="queries"
     fi
     top_clients_response=$(pihole_munin_state_handler "${stats_top_clients_url}?count=${top_clients_n}") || exit 1
-    # Output Munin graph config header (without graph_total for now)
-    printf "%s\n" \
-        "graph ${graph_top_clients:-${graph}}" \
-        "graph_args ${graph_args_top_clients:-${graph_args}}" \
-        "graph_category ${graph_category_top_clients:-${graph_category}}" \
-        "graph_height ${graph_height_top_clients:-${graph_height}}" \
-        "graph_info ${graph_info_top_clients:-"This graph shows Pi-hole's top clients by query count (max ${top_clients_n} clients)"}" \
-        "graph_scale ${graph_scale_top_clients:-${graph_scale}}" \
-        "graph_title ${graph_title_top_clients:-"Pi-hole top clients"}" \
-        "graph_vlabel ${graph_vlabel_top_clients:-${top_clients_vlabel}}" \
-        "graph_width ${graph_width_top_clients:-${graph_width}}"
-    # Count real clients (for graph_total logic)
-    real_clients_count=$(printf "%s" "${top_clients_response}" | jq -r '.clients | length')
-    # Print Munin field definitions for top N clients from API
-    if [ "${real_clients_count}" -gt 0 ]; then
+    # Collect field output into a variable so we know how many fields there are
+    top_clients_fields_output="$(
         printf "%s" "${top_clients_response}" | jq -r ".clients[] | \"\(.name) \(.count)\"" | awk 'NF == 2' |
         while read -r raw_key raw_value; do
             top_clients_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
@@ -2661,11 +2804,11 @@ pihole_munin_config_top_clients() {
             pihole_munin_safe_eval top_clients_type "top_clients_" "${top_clients_key}" "_type" "${graph_type_top_clients}"
             # Info string: singular/plural for DERIVE, else allow override
             if [ "${graph_type_top_clients:-${top_clients_type}}" = "DERIVE" ]; then
+                plural="queries"
                 if [ "${raw_value}" -eq 1 ]; then
-                    top_clients_info="${default_info} (${raw_value} query)"
-                else
-                    top_clients_info="${default_info} (${raw_value} queries)"
+                    plural="query"
                 fi
+                top_clients_info="${default_info} (${raw_value} ${plural})"
             else
                 pihole_munin_safe_eval top_clients_info "top_clients_" "${top_clients_key}" "_info" "${default_info}"
             fi
@@ -2686,9 +2829,32 @@ pihole_munin_config_top_clients() {
                 "${top_clients_min:-}" \
                 "${top_clients_type:-}" \
                 "${top_clients_warn:-}"
-        done
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${top_clients_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_top_clients:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_top_clients:-"total"}"
     else
-        # If no clients, output a placeholder field
+        print_total_line=""
+    fi
+    # Print Munin graph config header
+    printf "%s\n" \
+        "graph ${graph_top_clients:-${graph}}" \
+        "graph_args ${graph_args_top_clients:-${graph_args}}" \
+        "graph_category ${graph_category_top_clients:-${graph_category}}" \
+        "graph_height ${graph_height_top_clients:-${graph_height}}" \
+        "graph_info ${graph_info_top_clients:-"This graph shows Pi-hole's top clients by query count (max ${top_clients_n} clients)"}" \
+        "graph_scale ${graph_scale_top_clients:-${graph_scale}}" \
+        "graph_title ${graph_title_top_clients:-"Pi-hole top clients"}" \
+        "${print_total_line}" \
+        "graph_vlabel ${graph_vlabel_top_clients:-${top_clients_vlabel}}" \
+        "graph_width ${graph_width_top_clients:-${graph_width}}"
+    # Output fields or a placeholder if none
+    if [ -n "${top_clients_fields_output}" ]; then
+        printf "%s\n" "${top_clients_fields_output}"
+    else
         pihole_munin_print \
             "none" \
             "" \
@@ -2701,10 +2867,6 @@ pihole_munin_config_top_clients() {
             "0" \
             "${graph_type:-${graph_type_top_clients}}" \
             ""
-    fi
-    # Print graph_total line only if we have real clients and not "undef"
-    if [ "${real_clients_count}" -gt 0 ] && [ "${graph_total_top_clients:-total}" != "undef" ]; then
-        printf "graph_total %s\n" "${graph_total_top_clients:-total}"
     fi
 }
 
@@ -2721,21 +2883,8 @@ pihole_munin_config_top_domains() {
         top_domains_vlabel="queries"
     fi
     top_domains_response=$(pihole_munin_state_handler "${stats_top_domains_url}?count=${top_domains_n}") || exit 1
-    # Output Munin graph config header (without graph_total for now)
-    printf "%s\n" \
-        "graph ${graph_top_domains:-${graph}}" \
-        "graph_args ${graph_args_top_domains:-${graph_args}}" \
-        "graph_category ${graph_category_top_domains:-${graph_category}}" \
-        "graph_height ${graph_height_top_domains:-${graph_height}}" \
-        "graph_info ${graph_info_top_domains:-"This graph shows Pi-hole's top domains by query count (max ${top_domains_n} domains)"}" \
-        "graph_scale ${graph_scale_top_domains:-${graph_scale}}" \
-        "graph_title ${graph_title_top_domains:-"Pi-hole top domains"}" \
-        "graph_vlabel ${graph_vlabel_top_domains:-${top_domains_vlabel}}" \
-        "graph_width ${graph_width_top_domains:-${graph_width}}"
-    # Count real domains (for graph_total logic)
-    real_domains_count=$(printf "%s" "${top_domains_response}" | jq -r '.domains | length')
-    # Print Munin field definitions for top N domains from API
-    if [ "${real_domains_count}" -gt 0 ]; then
+    # Collect field output into a variable so we know how many fields there are
+    top_domains_fields_output="$(
         printf "%s" "${top_domains_response}" | jq -r ".domains[] | \"\(.domain) \(.count)\"" | awk 'NF == 2' |
         while read -r raw_key raw_value; do
             top_domains_key="$(printf "%s" "${raw_key}" | tr -c 'a-zA-Z0-9' '_')"
@@ -2751,11 +2900,11 @@ pihole_munin_config_top_domains() {
             pihole_munin_safe_eval top_domains_type "top_domains_" "${top_domains_key}" "_type" "${graph_type_top_domains}"
             # Info string: singular/plural for DERIVE, else allow override
             if [ "${graph_type_top_domains:-${top_domains_type}}" = "DERIVE" ]; then
+                plural="queries"
                 if [ "${raw_value}" -eq 1 ]; then
-                    top_domains_info="${default_info} (${raw_value} query)"
-                else
-                    top_domains_info="${default_info} (${raw_value} queries)"
+                    plural="query"
                 fi
+                top_domains_info="${default_info} (${raw_value} ${plural})"
             else
                 pihole_munin_safe_eval top_domains_info "top_domains_" "${top_domains_key}" "_info" "${default_info}"
             fi
@@ -2776,9 +2925,32 @@ pihole_munin_config_top_domains() {
                 "${top_domains_min:-}" \
                 "${top_domains_type:-}" \
                 "${top_domains_warn:-}"
-        done
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${top_domains_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_top_domains:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_top_domains:-"total"}"
     else
-        # If no domains, output a placeholder field
+        print_total_line=""
+    fi
+    # Print Munin graph config header
+    printf "%s\n" \
+        "graph ${graph_top_domains:-${graph}}" \
+        "graph_args ${graph_args_top_domains:-${graph_args}}" \
+        "graph_category ${graph_category_top_domains:-${graph_category}}" \
+        "graph_height ${graph_height_top_domains:-${graph_height}}" \
+        "graph_info ${graph_info_top_domains:-"This graph shows Pi-hole's top domains by query count (max ${top_domains_n} domains)"}" \
+        "graph_scale ${graph_scale_top_domains:-${graph_scale}}" \
+        "graph_title ${graph_title_top_domains:-"Pi-hole top domains"}" \
+        "${print_total_line}" \
+        "graph_vlabel ${graph_vlabel_top_domains:-${top_domains_vlabel}}" \
+        "graph_width ${graph_width_top_domains:-${graph_width}}"
+    # Output fields or a placeholder if none
+    if [ -n "${top_domains_fields_output}" ]; then
+        printf "%s\n" "${top_domains_fields_output}"
+    else
         pihole_munin_print \
             "none" \
             "" \
@@ -2791,10 +2963,6 @@ pihole_munin_config_top_domains() {
             "0" \
             "${graph_type:-${graph_type_top_domains}}" \
             ""
-    fi
-    # Print graph_total line only if we have real domains and not "undef"
-    if [ "${real_domains_count}" -gt 0 ] && [ "${graph_total_top_domains:-total}" != "undef" ]; then
-        printf "graph_total %s\n" "${graph_total_top_domains:-total}"
     fi
 }
 
@@ -2827,13 +2995,11 @@ pihole_munin_config_unique() {
     # Conditionally append value to info for DERIVE type
     pihole_munin_safe_eval unique_type "unique_" "unique_domains" "_type" "${graph_type_unique}"
     if [ "${graph_type_unique:-${unique_type}}" = "DERIVE" ]; then
+        plural="domains"
         if [ "${unique_domains_val}" = "1" ]; then
-            unique_info="Pi-hole unique domains (1 domain)"
-        elif [ -n "${unique_domains_val}" ]; then
-            unique_info="Pi-hole unique domains (${unique_domains_val} domains)"
-        else
-            unique_info="Pi-hole unique domains"
+            plural="domain"
         fi
+        unique_info="Pi-hole unique domains (${unique_domains_val:-"0"} ${plural})"
     else
         pihole_munin_safe_eval unique_info "unique_" "unique_domains" "_info" "Pi-hole unique domains"
     fi
@@ -2864,8 +3030,84 @@ pihole_munin_config_upstreams() {
     else
         upstreams_vlabel="queries"
     fi
-    # Optionally add a graph_total line if not "undef"
-    [ "${graph_total_upstreams:-total}" != "undef" ] && graph_total_line="graph_total ${graph_total_upstreams:-total}"
+    # Fetch upstreams metrics from API
+    upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
+    # Collect field output into a variable so we know how many fields there are
+    upstreams_fields_output="$(
+        upstreams_total=$(printf '%s' "${upstreams_response}" | jq '[.upstreams[].count // 0] | add')
+        printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
+            raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
+            raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
+            raw_port=$(printf '%s' "${upstream}" | jq -r '.port // 0')
+            upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
+            percent="0"
+            if [ "${upstreams_total}" -gt 0 ]; then
+                percent=$(awk "BEGIN { printf \"%.2f\", (${upstream_count}/${upstreams_total})*100 }")
+            fi
+            if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+                upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
+            else
+                upstreams_key=$(printf "%s" "${raw_ip}" | tr -c 'a-zA-Z0-9' '_')
+            fi
+            case "${upstreams_key}" in
+                [0-9]*) upstreams_key="upstreams_${upstreams_key}" ;;
+            esac
+            port_str=""
+            if [ -n "${raw_port}" ] && printf "%s" "${raw_port}" | grep -Eq '^[0-9]+$' && [ "${raw_port}" -gt 0 ] && [ "${raw_port}" -le 65535 ] && [ "${raw_port}" -ne 53 ]; then
+                port_str=":${raw_port}"
+            fi
+            if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+                default_label="${raw_name}${port_str}"
+                default_info="Pi-hole upstream server ${raw_name}${port_str} (${raw_ip}${port_str}"
+            else
+                rev_label=$(pihole_munin_rev_ptr "${raw_ip}")
+                default_label="${rev_label}${port_str}"
+                default_info="Pi-hole upstream server ${rev_label}${port_str} (${raw_ip}${port_str}"
+            fi
+            pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstreams_key}" "_colour" ""
+            pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstreams_key}" "_crit" ""
+            pihole_munin_safe_eval upstreams_draw "upstreams_" "${upstreams_key}" "_draw" "${graph_draw}"
+            pihole_munin_safe_eval upstreams_graph "upstreams_" "${upstreams_key}" "_graph" "yes"
+            pihole_munin_safe_eval upstreams_type "upstreams_" "${upstreams_key}" "_type" "${graph_type_upstreams}"
+            if [ "${graph_type_upstreams:-${upstreams_type}}" = "DERIVE" ]; then
+                plural="queries"
+                if [ "${upstream_count}" -eq 1 ]; then
+                    plural="query"
+                fi
+                if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
+                    upstreams_info="${default_info}, ${upstream_count} ${plural}, ${percent}% of total)"
+                else
+                    upstreams_info="${default_info} ${upstream_count} ${plural}, ${percent}% of total)"
+                fi
+            else
+                pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info})"
+            fi
+            pihole_munin_safe_eval upstreams_label "upstreams_" "${upstreams_key}" "_label" "${default_label}"
+            pihole_munin_safe_eval upstreams_max "upstreams_" "${upstreams_key}" "_max" ""
+            pihole_munin_safe_eval upstreams_min "upstreams_" "${upstreams_key}" "_min" "0"
+            pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstreams_key}" "_warn" ""
+            pihole_munin_print \
+                "${upstreams_key}" \
+                "${upstreams_colour:-}" \
+                "${upstreams_crit:-}" \
+                "${upstreams_draw:-}" \
+                "${upstreams_graph:-}" \
+                "${upstreams_info:-}" \
+                "${upstreams_label:-}" \
+                "${upstreams_max:-}" \
+                "${upstreams_min:-}" \
+                "${upstreams_type:-}" \
+                "${upstreams_warn:-}"
+        done || true
+    )"
+    # Count the number of fields (by .label lines)
+    num_fields=$(printf "%s\n" "${upstreams_fields_output}" | grep -c '\.label ')
+    # Only print graph_total if there are two or more fields and not "undef"
+    if [ "${graph_total_upstreams:-"total"}" != "undef" ] && [ "${num_fields}" -ge 2 ]; then
+        print_total_line="graph_total ${graph_total_upstreams:-"total"}"
+    else
+        print_total_line=""
+    fi
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_upstreams:-${graph}}" \
@@ -2875,91 +3117,26 @@ pihole_munin_config_upstreams() {
         "graph_info ${graph_info_upstreams:-"This graph shows the query counts for each of Pi-hole's upstream destinations"}" \
         "graph_scale ${graph_scale_upstreams:-${graph_scale}}" \
         "graph_title ${graph_title_upstreams:-"Pi-hole upstream servers"}" \
-        ${graph_total_line:+"${graph_total_line}"} \
-        "graph_vlabel ${graph_vlabel_upstreams:--${upstreams_vlabel}}" \
+        "${print_total_line}" \
+        "graph_vlabel ${graph_vlabel_upstreams:-${upstreams_vlabel}}" \
         "graph_width ${graph_width_upstreams:-${graph_width}}"
-    upstreams_response=$(pihole_munin_state_handler "${stats_upstreams_url}") || exit 1
-    # This is not the greatest query percentile calculation in the World, no.
-    # This is just a tribute.
-    upstreams_total=$(printf '%s' "${upstreams_response}" | jq '[.upstreams[].count // 0] | add')
-    printf "%s" "${upstreams_response}" | jq -c '.upstreams[]' | while read -r upstream; do
-        raw_name=$(printf '%s' "${upstream}" | jq -r '.name // empty')
-        raw_ip=$(printf '%s' "${upstream}" | jq -r '.ip // empty')
-        raw_port=$(printf '%s' "${upstream}" | jq -r '.port // 0')
-        upstream_count=$(printf '%s' "${upstream}" | jq -r '.count // 0')
-        # Calculate percentage using upstreams_total
-        percent="0"
-        if [ "${upstreams_total}" -gt 0 ]; then
-            percent=$(awk "BEGIN { printf \"%.2f\", (${upstream_count}/${upstreams_total})*100 }")
-        fi
-        # Build key: prefer name, else IP
-        if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
-            upstreams_key=$(printf "%s" "${raw_name}" | tr -c 'a-zA-Z0-9' '_')
-        else
-            upstreams_key=$(printf "%s" "${raw_ip}" | tr -c 'a-zA-Z0-9' '_')
-        fi
-        # Prefix numeric keys to avoid Munin issues
-        case "${upstreams_key}" in
-            [0-9]*) upstreams_key="upstreams_${upstreams_key}" ;;
-        esac
-        # Port string for label/info
-        port_str=""
-        if [ -n "${raw_port}" ] && printf "%s" "${raw_port}" | grep -Eq '^[0-9]+$' && [ "${raw_port}" -gt 0 ] && [ "${raw_port}" -le 65535 ] && [ "${raw_port}" -ne 53 ]; then
-            port_str=":${raw_port}"
-        fi
-        # Build label and info: prefer name, then rev_ptr, then IP
-        if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
-            default_label="${raw_name}${port_str}"
-            default_info="Pi-hole upstream server ${raw_name}${port_str} (${raw_ip}${port_str}"
-        else
-            rev_label=$(pihole_munin_rev_ptr "${raw_ip}")
-            default_label="${rev_label}${port_str}"
-            default_info="Pi-hole upstream server ${rev_label}${port_str} (${raw_ip}${port_str}"
-        fi
-        pihole_munin_safe_eval upstreams_colour "upstreams_" "${upstreams_key}" "_colour" ""
-        pihole_munin_safe_eval upstreams_crit "upstreams_" "${upstreams_key}" "_crit" ""
-        pihole_munin_safe_eval upstreams_draw "upstreams_" "${upstreams_key}" "_draw" "${graph_draw}"
-        pihole_munin_safe_eval upstreams_graph "upstreams_" "${upstreams_key}" "_graph" "yes"
-        pihole_munin_safe_eval upstreams_type "upstreams_" "${upstreams_key}" "_type" "${graph_type_upstreams}"
-        # Info string: for DERIVE, combine IP and count in one parenthesis if name/rev_ptr, else just append count
-        if [ "${graph_type_upstreams:-${upstreams_type}}" = "DERIVE" ]; then
-            if [ -n "${raw_name}" ] && [ "${raw_name}" != "null" ]; then
-                # Name or rev_ptr, combine ip and count in one parenthesis
-                if [ "${upstream_count}" -eq 1 ]; then
-                    upstreams_info="${default_info}, ${upstream_count} query, ${percent}% of total)"
-                else
-                    upstreams_info="${default_info}, ${upstream_count} queries, ${percent}% of total)"
-                fi
-            else
-                # Only IP/rev_ptr, just append count
-                if [ "${upstream_count}" -eq 1 ]; then
-                    upstreams_info="${default_info} (${upstream_count} query, ${percent}% of total)"
-                else
-                    upstreams_info="${default_info} (${upstream_count} queries, ${percent}% of total)"
-                fi
-            fi
-        else
-            # Non-DERIVE: use default info, close parenthesis if needed
-            pihole_munin_safe_eval upstreams_info "upstreams_" "${upstreams_key}" "_info" "${default_info})"
-        fi
-        pihole_munin_safe_eval upstreams_label "upstreams_" "${upstreams_key}" "_label" "${default_label}"
-        pihole_munin_safe_eval upstreams_max "upstreams_" "${upstreams_key}" "_max" ""
-        pihole_munin_safe_eval upstreams_min "upstreams_" "${upstreams_key}" "_min" "0"
-        pihole_munin_safe_eval upstreams_warn "upstreams_" "${upstreams_key}" "_warn" ""
-        # Print Munin field config for this upstream key
+    # Output fields or a placeholder if none
+    if [ -n "${upstreams_fields_output}" ]; then
+        printf "%s\n" "${upstreams_fields_output}"
+    else
         pihole_munin_print \
-            "${upstreams_key}" \
-            "${upstreams_colour:-}" \
-            "${upstreams_crit:-}" \
-            "${upstreams_draw:-}" \
-            "${upstreams_graph:-}" \
-            "${upstreams_info:-}" \
-            "${upstreams_label:-}" \
-            "${upstreams_max:-}" \
-            "${upstreams_min:-}" \
-            "${upstreams_type:-}" \
-            "${upstreams_warn:-}"
-    done
+            "none" \
+            "" \
+            "" \
+            "${graph_draw}" \
+            "yes" \
+            "No upstreams" \
+            "none" \
+            "" \
+            "0" \
+            "${graph_type_upstreams}" \
+            ""
+    fi
 }
 
 ###############################################################################
@@ -2971,7 +3148,7 @@ pihole_munin_config_upstreams() {
 
 pihole_munin_config_version() {
     # Docker version monitoring toggle (default: no)
-    version_enable_docker="${version_enable_docker:-no}"
+    version_enable_docker="${version_enable_docker:-"no"}"
     # Print Munin graph config lines, using plugin-specific overrides if set
     printf "%s\n" \
         "graph ${graph_version:-${graph}}" \
@@ -3547,7 +3724,7 @@ pihole_munin_fetch_version() {
         version_response=$(pihole_munin_state_handler "${info_version_url}" 2>/dev/null)
     fi
     # Docker version monitoring toggle (default: no)
-    version_enable_docker="${version_enable_docker:-no}"
+    version_enable_docker="${version_enable_docker:-"no"}"
     # For each Pi-hole module, determine status:
     # -1 unknown, 0 up-to-date, 1 update available
     for pihole_module in core web ftl docker; do
@@ -3850,12 +4027,12 @@ parse_install_args() {
 # Directory Setup
 ###############################################################################
 
-plugins_available="$(pihole_munin_safe_path "${PLUGINS_AVAILABLE:-/usr/share/munin/plugins}")"
-plugins_enabled="$(pihole_munin_safe_path "${PLUGINS_ENABLED:-/etc/munin/plugins}")"
-plugins_config="$(pihole_munin_safe_path "${PLUGINS_CONFIG:-/etc/munin/plugin-conf.d}")"
+plugins_available="$(pihole_munin_safe_path "${PLUGINS_AVAILABLE:-"/usr/share/munin/plugins"}")"
+plugins_enabled="$(pihole_munin_safe_path "${PLUGINS_ENABLED:-"/etc/munin/plugins"}")"
+plugins_config="$(pihole_munin_safe_path "${PLUGINS_CONFIG:-"/etc/munin/plugin-conf.d"}")"
 pihole_munin_path="${plugins_available}/pihole_munin_"
 
-pihole_munin_user="${SUDO_USER:-$USER}"
+pihole_munin_user="${SUDO_USER:-${USER}}"
 pihole_munin_host="$(hostname)"
 
 ###############################################################################
@@ -3866,7 +4043,7 @@ pihole_munin_host="$(hostname)"
 ###############################################################################
 
 pihole_munin_check_required_dirs() {
-    dry_run="${dry_run:-0}"
+    dry_run="${dry_run:-"0"}"
     printf "  %s Checking required directories …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[🗂️]" || printf "[🗂️] (DRY RUN)" )"
     for required_dir in "$@"; do
@@ -3887,7 +4064,7 @@ pihole_munin_check_required_dirs() {
 ###############################################################################
 
 pihole_munin_check_plugin_file() {
-    dry_run="${dry_run:-0}"
+    dry_run="${dry_run:-"0"}"
     printf "  %s Checking plugin file …\n" \
         "$( [ "${dry_run}" -eq 0 ] && printf "[📄]" || printf "[📄] (DRY RUN)")"
     [ -f "${pihole_munin_path}" ] || {
@@ -4313,8 +4490,8 @@ pihole_munin_safe_prompt() {
 ###############################################################################
 
 pihole_munin_mktemp() {
-    mktemp_dir="${1:-/tmp}"
-    mktemp_prefix="${2:-pihole_munin_}"
+    mktemp_dir="${1:-"/tmp"}"
+    mktemp_prefix="${2:-"pihole_munin_"}"
     # Try different mktemp syntaxes for compatibility
     mktemp "${mktemp_dir}/${mktemp_prefix}.XXXXXX" 2>/dev/null || mktemp -t "${mktemp_prefix}.XXXXXX" || {
         printf "%s\n" "  [❌] Unable to create temporary file '${mktemp_prefix}'." >&2
@@ -4526,10 +4703,10 @@ pihole_munin_check() {
     extract_tag() { printf '%s' "$1" | grep -oE '[-][a-zA-Z0-9]+' | sed 's/^-//'; }
     # Split version strings into components
     IFS=. read -r a b c_extra <<EOF
-${1:-0.0.0}
+${1:-"0.0.0"}
 EOF
     IFS=. read -r x y z_extra <<EOF
-${2:-0.0.0}
+${2:-"0.0.0"}
 EOF
     # Extract numeric patch and tag
     c=$(printf '%s' "${c_extra}" | grep -oE '^[0-9]+')
@@ -4821,99 +4998,6 @@ pihole_munin_update() {
 }
 
 ###############################################################################
-# Test Plugins Function
-###############################################################################
-# Usage:
-#   pihole_munin_test [<option>]
-#
-# Description:
-#   Tests all enabled pihole_munin_ plugins using munin-run. Runs both config
-#   and fetch commands for each plugin, reporting any errors. Supports dry run
-#   mode to preview actions, and verbose/trace output for debugging.
-#
-# Arguments:
-#   <option>     - Options:
-#                -D, dry, --dry-run     Show actions without making changes
-#                -T, trace, --trace     Show detailed plugin output
-#                                       (implies verbose)
-#                -V, verbose, --verbose Show plugin output during the test
-#
-# Logic:
-#   - Checks for munin-run command.
-#   - Parses options for dry run, verbose, and trace modes.
-#   - If not dry run, runs munin-run config and fetch for each plugin.
-#   - In verbose/trace mode, prints plugin output and errors.
-#   - In dry run, checks symlinks exist for each plugin.
-#
-# Output:
-#   - Prints status and success/error messages.
-#   - Returns non-zero on error.
-###############################################################################
-
-pihole_munin_test() {
-    # Check for munin-run command
-    if ! command -v munin-run >/dev/null 2>&1; then
-        printf "%s\n" "  [❌] 'munin-run' command not found." >&2
-        exit 1
-    fi
-    pihole_munin_header
-    dry_run="0"
-    verbose="0"
-    trace="0"
-    # Parse options
-    for option in "$@"; do
-        case "${option}" in
-            "-D"|"dry"|"--dry-run") dry_run="1" ;;
-            "-T"|"trace"|"--trace")
-                trace="1"
-                verbose="1"
-                ;;
-            "-V"|"verbose"|"--verbose") verbose="1" ;;
-        esac
-    done
-    printf "  %s Testing pihole_munin_ plugins …\n" \
-        "$( [ "${dry_run}" -eq 0 ] && printf "[🧪]" || printf "[🧪] (DRY RUN)")"
-    if [ "${dry_run}" -eq 0 ]; then
-        # Actually run munin-run for each plugin
-        for plugin in $(pihole_munin_valid_plugins); do
-            if [ "${verbose}" -eq 1 ]; then
-                munin_run_cmd="munin-run pihole_munin_${plugin}"
-                [ "${trace}" -eq 1 ] && munin_run_cmd="$munin_run_cmd --debug"
-                if ! eval "$munin_run_cmd config"; then
-                    printf "%s\n" "  [❌] 'config' failed for plugin '${plugin}'."
-                    exit 1
-                fi
-                if ! eval "$munin_run_cmd fetch"; then
-                    printf "%s\n" "  [❌] 'fetch' failed for plugin '${plugin}'."
-                    exit 1
-                fi
-            else
-                if ! munin-run pihole_munin_"${plugin}" config >/dev/null 2>&1; then
-                    printf "%s\n" "  [❌] 'config' failed for plugin '${plugin}'."
-                    exit 1
-                fi
-                if ! munin-run pihole_munin_"${plugin}" fetch >/dev/null 2>&1; then
-                    printf "%s\n" "  [❌] 'fetch' failed for plugin '${plugin}'."
-                    exit 1
-                fi
-            fi
-            printf "%s\n" "       ${plugin}"
-        done
-    else
-        # Dry run: just check symlinks exist
-        for plugin in $(pihole_munin_valid_plugins); do
-            [ -L "${pihole_munin_path}${plugin}" ] || {
-                printf "%s\n" "  [❌] Plugin '${plugin}' not found in '${plugins_available}'." >&2
-                exit 1
-            }
-            printf "%s\n" "       ${plugin}"
-        done
-    fi
-    printf "\n  %s Success.\n" \
-        "$( [ "${dry_run}" -eq 0 ] && printf "[✅]" || printf "[✅] (DRY RUN)" )"
-}
-
-###############################################################################
 # Help Function
 ###############################################################################
 # Usage:
@@ -5120,23 +5204,6 @@ pihole_munin_help() {
                 "       but is linked as multiple files in the directory for enabled plugins." \
                 "       This creates one graph per link name, using just one plugin as source."
             ;;
-        "-t"|"test"|"--test-plugins")
-            printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n" \
-                "  [❓] ${script_path} ${1}" \
-                "       Test all pihole_munin_ plugins." \
-                "       This will run the config and fetch commands for each plugin, and report" \
-                "       any errors encountered during the process." \
-                "  Options:" \
-                "    -D, dry, --dry-run     Show what would be done, without making any changes." \
-                "    -T, trace, --trace     Show detailed plugin output during the test." \
-                "    -V, verbose, --verbose Show plugin output during the test." \
-                "  Note:" \
-                "    Use of '--trace' implies '--verbose' and passes '--debug' to 'munin-run'." \
-                "  Examples:" \
-                "    ${script_path} ${1} --dry-run" \
-                "    ${script_path} ${1} --trace" \
-                "    ${script_path} ${1} --verbose"
-            ;;
         "-v"|"version"|"--version")
             printf "%s\n\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n%s\n" \
                 "  [❓] ${script_path} ${1} [<option>]" \
@@ -5150,7 +5217,7 @@ pihole_munin_help() {
                 "    ${script_path} ${1} --skip-version-check"
             ;;
         "")
-            printf "%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
+            printf "%s\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n%s\n" \
                 "  [❓] ${script_path} <command>" \
                 "  Commands:" \
                 "    -a, admin, --admin         Manage plugin configuration and installation." \
@@ -5161,7 +5228,6 @@ pihole_munin_help() {
                 "    -h, help, --help           Show detailed help information." \
                 "    setpassword                Shortcut to set the Pi-hole password." \
                 "    suggest                    List available plugins." \
-                "    -t, test, --test-plugins   Test all pihole_munin_ plugins." \
                 "    -v, version, --version     Display the plugin version string." \
                 "  [ℹ️] Run '${script_path} help <command>' for more information on a command."
             ;;
@@ -5215,7 +5281,7 @@ case "${1}" in
             "-U"|"update"|"--update") pihole_munin_root "$@" ;;
         esac
         ;;
-    "setpassword"|"-t"|"test"|"--test-plugins")
+    "setpassword")
         pihole_munin_root "$@"
         ;;
 esac
@@ -5260,7 +5326,7 @@ case "${1}" in
         case "${2}" in
             "") pihole_munin_help ;;
             "-a"|"admin"|"--admin") pihole_munin_help "${2}" "${3:-}" ;;
-            "autoconf"|"config"|"fetch"|"-f"|"flush"|"--flush-state"|"setpassword"|"suggest"|"-t"|"test"|"--test-plugins"|"-v"|"version"|"--version")
+            "autoconf"|"config"|"fetch"|"-f"|"flush"|"--flush-state"|"setpassword"|"suggest"|"-v"|"version"|"--version")
                 pihole_munin_help "${2}"
                 ;;
             *)
@@ -5271,7 +5337,6 @@ case "${1}" in
         ;;
     "suggest") pihole_munin_suggest ;;
     "setpassword") pihole_munin_configure "add" "pihole_password" "${2:-}" ;;
-    "-t"|"test"|"--test-plugins") pihole_munin_test "$@" ;;
     "-v"|"version"|"--version")
         shift
         pihole_munin_version "$@"
@@ -5280,8 +5345,8 @@ case "${1}" in
     *) pihole_munin_help ;;
 esac
 
-#    /\_/\  
-#   ( O.O ) 
+#    /\_/\
+#   ( O.O )
 #    > ^ < ((
 #   /     \ ))
 #   \\ | / \/

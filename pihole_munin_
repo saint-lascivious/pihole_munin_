@@ -66,7 +66,7 @@ raw_repo_url="https://${repo_url}/raw/${branch}/pihole_munin_"
 
 major_version="2"
 minor_version="0"
-micro_version="0"
+micro_version="1"
 version_tag="-development"
 
 pihole_munin_version="${PIHOLE_MUNIN_VERSION:-${major_version}.${minor_version}.${micro_version}${version_tag}}"

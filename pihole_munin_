@@ -65,7 +65,7 @@ repo_url="github.com/saint-lascivious/pihole_munin_"
 raw_repo_url="https://${repo_url}/raw/${branch}/pihole_munin_"
 
 major_version="1"
-minor_version="1"
+minor_version="0"
 micro_version="0"
 version_tag="-master"
 
@@ -4866,7 +4866,7 @@ pihole_munin_version() {
     done
     pihole_munin_print_status "📦" "Version: ${pihole_munin_version}"
     if [ "${skip_check}" -eq 0 ] && command -v dig >/dev/null 2>&1; then
-        remote_version=$(dig +short TXT pihole-munin.sainternet.xyz | sed -e 's/[^.0-9]//g')
+        remote_version=$(dig +short TXT pihole-munin.sainternet-${branch}.xyz | sed -e 's/[^.0-9]//g')
         pihole_munin_print_status "🔄" "Checking for updates …"
         if [ -n "${remote_version}" ]; then
             if pihole_munin_check "${remote_version}" "${pihole_munin_version}"; then

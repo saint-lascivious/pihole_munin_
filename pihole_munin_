@@ -66,7 +66,7 @@ raw_repo_url="https://${repo_url}/raw/${branch}/pihole_munin_"
 
 major_version="2"
 minor_version="0"
-micro_version="1"
+micro_version="0"
 version_tag="-development"
 
 pihole_munin_version="${PIHOLE_MUNIN_VERSION:-${major_version}.${minor_version}.${micro_version}${version_tag}}"
@@ -4866,7 +4866,7 @@ pihole_munin_version() {
     done
     pihole_munin_print_status "📦" "Version: ${pihole_munin_version}"
     if [ "${skip_check}" -eq 0 ] && command -v dig >/dev/null 2>&1; then
-        remote_version=$(dig +short TXT pihole-munin.sainternet.xyz | sed -e 's/[^.0-9]//g')
+        remote_version=$(dig +short TXT pihole-munin-${branch}.sainternet.xyz | sed -e 's/[^.0-9]//g')
         pihole_munin_print_status "🔄" "Checking for updates …"
         if [ -n "${remote_version}" ]; then
             if pihole_munin_check "${remote_version}" "${pihole_munin_version}"; then
@@ -5246,7 +5246,8 @@ pihole_munin_help() {
             pihole_munin_print_status "❓" "${script_path} ${1} [<option>]\n
                 Display the plugin version string.\n
                 If not skipped, a check for a newer version will be performed using a
-                remote DNS TXT record located at the pihole-munin.sainternet.xyz domain.\n
+                remote DNS TXT record located at the following domain:
+                pihole-munin-development.sainternet.xyz domain.\n
                 Options:
                 |  -S, skip, --skip-version-check     Skip remote plugin version check.\n"
             ;;

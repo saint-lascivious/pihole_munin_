@@ -5246,7 +5246,8 @@ pihole_munin_help() {
             pihole_munin_print_status "❓" "${script_path} ${1} [<option>]\n
                 Display the plugin version string.\n
                 If not skipped, a check for a newer version will be performed using a
-                remote DNS TXT record located at the pihole-munin.sainternet.xyz domain.\n
+                remote DNS TXT record located at the following domain:
+                pihole-munin-master.sainternet.xyz\n
                 Options:
                 |  -S, skip, --skip-version-check     Skip remote plugin version check.\n"
             ;;
